@@ -1,0 +1,210 @@
+# analyzer_config.yaml
+# ============================================================
+# 反应网络分析配置（完整注释版）
+#
+# 使用建议（最少改这三处）：
+# 1) run.traj            -> 你的轨迹文件
+# 2) slab.mode + (elements/indices) -> 定义哪些原子是表面/基底
+# 3) analyzer.smiles_mode / ads_signature_mode -> 标签策略
+#
+# 运行后主要输出：
+# - <out_prefix>_events_transform.csv   反应事件（物种变化）
+# - <out_prefix>_events_bonds.csv       键形成/断裂事件
+# - <out_prefix>_network.graphml        双部图（species-reaction）
+# - <out_prefix>_network_mixture.graphml 兼容混合物图
+# - <out_prefix>_reactions_summary.tsv  可逆反应汇总
+# - <out_prefix>_frame_species.csv      每帧物种（若开启 record_frame_species）
+# ============================================================
+
+run:
+  # 轨迹文件路径（支持相对路径；相对路径通常相对于配置文件目录）
+  traj: "md.extxyz"
+
+  # 输出前缀：所有输出文件都会以它开头
+  out_prefix: "md"
+
+  # 抽帧步长：1=每帧；2=隔一帧；10=每10帧取1帧
+  # 取大可加速，但会损失时间分辨率
+  stride: 1
+
+  # 最大处理帧数：null=处理到轨迹结束；1000=只处理前1000帧
+  max_frames: null
+
+
+criteria:
+  # -------- 时间稳定性（给 EdgeTracker 用）--------
+  # persist: “候选新状态”需连续出现多少帧才确认切换
+  # 值越大，抗噪越强，但反应检测滞后越明显
+  persist: 5
+
+  # cooldown: 每次切换后，锁定多少帧不再允许再次切换（防抖）
+  cooldown: 3
+
+  # -------- 距离迟滞阈值（基于共价半径和）--------
+  # 公式：d_form = form * (ri+rj), d_break = break * (ri+rj)
+  # 严格迟滞：
+  # - 当前确认 OFF：d <= d_form 才会变 ON
+  # - 当前确认 ON ：d <= d_break 维持 ON，否则 OFF
+  #
+  # max_neighbors: 每个原子允许的该类“瞬时成键”邻居上限
+  # null 表示不限制；常用于抑制高配位噪声（尤其金属）
+  cov:
+    form: 1.15
+    break: 1.25
+    max_neighbors: null
+
+  ads:
+    form: 1.25
+    break: 1.40
+    max_neighbors: null
+
+  slab:
+    form: 1.35
+    break: 1.55
+    max_neighbors: 12
+
+
+# slab 定义（“哪些原子算表面/基底”）
+# mode:
+# - elements: 按元素符号识别（如 Pt, Ni）
+# - indices : 按原子索引识别
+slab:
+  mode: "elements"          # "elements" | "indices"
+
+  # mode=elements 时生效：这些元素全被当作 slab 原子
+  elements: ["Pt"]
+
+  # mode=indices 时生效：这些索引当作 slab 原子（0-based）
+  # 例如 [0,1,2,3]
+  indices: []
+
+
+analyzer:
+  # WL 图哈希迭代次数（用于 formula|wl=... 标签）
+  # 越大区分能力越强，开销略增
+  wl_iters: 3
+
+  # 基线确认：初始阶段需连续多少帧“物种多重集”稳定，才进入正常事件发射
+  baseline_persist: 5
+
+  # warmup 阶段是否记录 init_assignment 事件
+  # 注意：仅当 drop_init_events=false 时此项才有意义
+  record_init_events: false
+
+  # 是否丢弃 warmup 阶段事件（优先级高于 record_init_events）
+  drop_init_events: true
+
+  # 吸附签名模式（在物种标签末尾追加）
+  # - none    : 不追加吸附信息
+  # - coarse  : 仅追加 |ads
+  # - detailed: 追加 ads(n=...,coord=...,slab=...)
+  ads_signature_mode: "coarse"      # "none" | "coarse" | "detailed"
+
+  # ------- site 增强标签 -------
+  # 只有在 site.enabled=true 且成功加载 sites.yaml 时才会生效
+  # - none     : 不追加位点标签
+  # - type     : 追加 site_type
+  # - id       : 追加 site_id
+  # - type+id  : 同时追加
+  # - detailed : 当前实现与 type+id 等价
+  #
+  # 若 site.enabled=false，建议这里设为 "none"
+  site_signature_mode: "none"
+
+  # SMILES 重算策略
+  # - always   : 每帧每分量都重算
+  # - on_change: 仅当 (组件原子集合, WL哈希) 变化时重算（更快）
+  smiles_recompute_mode: "on_change" # "always" | "on_change"
+
+  # SMILES 主策略
+  # - rdkit_3d       : RDKit 基于3D几何感知键
+  # - openbabel_3d   : OpenBabel 基于3D几何感知键
+  # - rdkit_topology : 用“已确认共价边”建拓扑，再导出SMILES（通常更稳）
+  # - combo          : 按 smiles_combo_order 依次尝试
+  # - edges_rdkit    : rdkit_topology 的别名
+  # - best_effort    : combo 的别名（兼容）
+  smiles_mode: "rdkit_topology"
+
+  # combo 模式下的尝试顺序
+  # 可选项名：rdkit_topology / rdkit_3d / openbabel_3d / edges_rdkit / best_effort
+  smiles_combo_order: ["rdkit_topology", "rdkit_3d", "openbabel_3d"]
+
+  # combo 中是否把“可疑 SMILES”当失败（继续尝试后续策略）
+  # 可疑定义由 smiles_allow_charged / smiles_allow_dot 控制
+  smiles_combo_treat_suspicious_as_failure: true
+
+  # combo 中是否优先返回带电 SMILES（在允许带电时才有意义）
+  smiles_combo_prefer_charged: false
+
+  # 可疑判定开关：允许带电符号 '+'/'-'、允许多分子 '.'
+  smiles_allow_charged: false
+  smiles_allow_dot: false
+
+  # RDKit 拓扑策略参数
+  rdkit_sanitize: true
+  rdkit_hide_hs: false
+
+  # 若得到可疑 SMILES，是否回退到 formula|wl 标签
+  # true: 可疑时不用 smiles，回退到 wl；false: 保留 smiles
+  smiles_fallback_to_formula_if_suspicious: false
+
+  # ------- 反应拆分（按连通分量映射）-------
+  # true: 尝试将全局 delta 拆成多个局部事件（更细粒度）
+  split_by_component: true
+
+  # 分量匹配最小重叠阈值（0~1）
+  # 0.0 表示“只要有重叠就可匹配”
+  component_overlap_min: 0.0
+
+  # 重叠评分模式：
+  # - symmetric : min(|A∩B|/|A|, |A∩B|/|B|)
+  # - old_to_new: |A∩B|/|A|
+  # - new_to_old: |A∩B|/|B|
+  component_overlap_mode: "symmetric"
+
+  # 若前后帧分量映射不充分，是否要求必须映射成功
+  # true: 映射失败则回退到全局 delta 发射
+  require_component_mapping: true
+
+  # 拆分后是否保留并分配 bond evidence 到各子事件
+  split_component_keep_bond_evidence: true
+
+  # ------- 每帧物种记录 -------
+  # 是否输出每帧物种信息 CSV
+  record_frame_species: true
+
+  # 在每帧 CSV 中额外写入 species 计数字典（Counter）
+  frame_species_include_counts: true
+
+  # 在每帧 CSV 中额外写入连通分量原子索引
+  frame_species_include_components: true
+
+  # true: 边跑边写（实时落盘，内存占用小）
+  # false: 结束后一次性写
+  frame_species_streaming: true
+
+  # 每帧 CSV 输出路径；null 时自动用 <out_prefix>_frame_species.csv
+  frame_species_path: null
+
+  # reactions_summary.tsv 是否包含正反向发生帧列表
+  reaction_summary_include_frames: true
+
+
+site:
+  # 是否启用位点定义
+  enabled: false
+
+  # 位点定义文件（YAML）
+  # 建议：enabled=false 时设为 null（防止旧版本误加载）
+  # 启用时示例："sites.yaml"
+  file: null
+
+  # sites.yaml 中原子索引的基准：
+  # 0 = 0-based（ASE风格）
+  # 1 = 1-based（会自动减1）
+  index_base: 0
+
+  # 严格位点索引校验：
+  # true : 越界/非slab索引 -> 报错
+  # false: 忽略非法索引
+  strict_index_validation: true

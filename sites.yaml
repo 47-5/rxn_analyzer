@@ -1,0 +1,37 @@
+# sites.yaml
+sites:
+  - id: B1
+    name: "Brønsted acid site #1"
+    type: "B"
+    atoms: [120, 121, 122]
+    priority: 20
+
+  - id: B2
+    name: "Brønsted acid site #2"
+    type: "B"
+    atoms: [220, 221, 222]
+    priority: 20
+
+  - id: GaL1
+    name: "Gallium Lewis site #1"
+    type: "Ga-L"
+    atoms: [340]
+    priority: 15
+
+  - id: GaL2
+    name: "Gallium Lewis site #2"
+    type: "Ga-L"
+    atoms: [355, 356]
+    priority: 15
+
+  - id: GaOH2L1
+    name: "GaOH2 Lewis-like site #1"
+    type: "GaOH2-L"
+    atoms: [410, 411, 412]
+    priority: 18
+
+  - id: GaOH2L2
+    name: "GaOH2 Lewis-like site #2"
+    type: "GaOH2-L"
+    atoms: [430, 431, 432]
+    priority: 18
