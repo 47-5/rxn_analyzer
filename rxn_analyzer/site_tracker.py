@@ -74,8 +74,8 @@ class ReactiveSiteTracker:
                     new_state=curr.state_label,
                     added_members=added,
                     removed_members=removed,
-                    bound_species_before=tuple(prev.associated_species_labels),
-                    bound_species_after=tuple(curr.associated_species_labels),
+                    associated_species_before=tuple(prev.associated_species_labels),
+                    associated_species_after=tuple(curr.associated_species_labels),
                     evidence_bonds=evidence,
                 )
             )
@@ -91,8 +91,8 @@ class ReactiveSiteTracker:
                         site_state_after=curr.state_label,
                         reactants=tuple(prev.associated_species_labels),
                         products=tuple(curr.associated_species_labels),
-                        bound_species_before=tuple(prev.associated_species_labels),
-                        bound_species_after=tuple(curr.associated_species_labels),
+                        associated_species_before=tuple(prev.associated_species_labels),
+                        associated_species_after=tuple(curr.associated_species_labels),
                         evidence_bonds=evidence,
                     )
                 )

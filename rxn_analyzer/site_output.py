@@ -3,6 +3,10 @@ from __future__ import annotations
 import csv
 import json
 
+import networkx as nx
+
+from .events import TransformEvent
+from .site_coupling import build_site_reaction_couplings
 from .site_model import JointReactiveSiteReaction, ReactiveSiteEvent, ReactiveSiteStateFrame
 
 
@@ -20,6 +24,10 @@ Files
   Site-centered state-change events between adjacent frames.
 - <out_prefix>_joint_site_reactions.csv
   Site-centered reactions using associated species as the reaction context.
+- <out_prefix>_site_reaction_coupling.csv
+  Unified table linking non-slab transform events with reactive-site state changes.
+- <out_prefix>_network_site_aware.graphml
+  Graph containing species, reaction, and site_state nodes in one site-aware network.
 
 site_states.csv columns
 - frame
@@ -80,9 +88,9 @@ site_events.csv columns
   Atoms that entered state_members compared with the previous frame.
 - removed_members
   Atoms that left state_members compared with the previous frame.
-- bound_species_before
+- associated_species_before
   Associated species labels in the previous frame.
-- bound_species_after
+- associated_species_after
   Associated species labels in the current frame.
 - evidence_bonds
   Bond events touching the site neighborhood in this frame.
@@ -102,12 +110,46 @@ joint_site_reactions.csv columns
   Previous associated species labels, used as the reaction context.
 - products
   Current associated species labels, used as the reaction context.
-- bound_species_before
+- associated_species_before
   Same associated-species context as reactants, kept for readability.
-- bound_species_after
+- associated_species_after
   Same associated-species context as products, kept for readability.
 - evidence_bonds
   Bond events touching the site neighborhood in this frame.
+
+site_reaction_coupling.csv columns
+- frame
+  Frame index used by the analyzer.
+- site_id
+  Reactive-site identifier.
+- site_family
+  Reactive-site family/type.
+- site_state_before
+  Previous frame state_label for this site.
+- site_state_after
+  Current frame state_label for this site.
+- site_changed
+  Whether a reactive-site state-change event exists for this frame/site pair.
+- has_transform
+  Whether any non-slab transform event was linked to this site on this frame.
+- transform_event_ids
+  Linked transform event ids.
+- transform_types
+  Linked transform event types.
+- transform_reactants
+  Reactant labels aggregated from linked transform events.
+- transform_products
+  Product labels aggregated from linked transform events.
+- associated_species_before
+  Associated species labels before the event/frame transition.
+- associated_species_after
+  Associated species labels after the event/frame transition.
+- coupling_type
+  One of reaction_only_on_site, reaction_with_site_change, or site_change_only.
+- link_strength
+  Link confidence: strong for atom-overlap evidence, medium for species-overlap evidence, none for site-only changes.
+- evidence_bonds
+  Supporting bond-event evidence collected from linked transforms or site events.
 
 Reading tips
 - core_members answer: which site is this?
@@ -115,14 +157,172 @@ Reading tips
 - associated_members and associated_species_labels answer: what is still externally associated with the site?
 - site_events.csv is the best file for site evolution.
 - joint_site_reactions.csv is the best file for reaction-context interpretation.
+- network_site_aware.graphml is the best graph view for seeing whether reactions happen on a site and whether the site state changes.
+- In Gephi, try node labels from display_label, and inspect transform_equation, site_state_transition, coupling_type, and link_strength as custom attributes.
 """
         with open(path, "w", encoding="utf-8") as f:
             f.write(text)
+
+    def _build_site_aware_graph(self, coupling_rows) -> nx.DiGraph:
+        G = nx.DiGraph()
+        species_map: dict[str, str] = {}
+        site_state_map: dict[tuple[str, str], str] = {}
+        reaction_map: dict[tuple, str] = {}
+
+        def get_species_node(label: str) -> str:
+            if label in species_map:
+                return species_map[label]
+            nid = f"s{len(species_map)}"
+            species_map[label] = nid
+            short_label = label.split("|", 1)[0]
+            G.add_node(
+                nid,
+                node_type="species",
+                label=short_label,
+                orig_id=label,
+                display_label=short_label,
+                species_label=label,
+                species_formula=short_label,
+            )
+            return nid
+
+        def _site_body_state_label(full_state_label: str) -> str:
+            raw = str(full_state_label or "").strip()
+            if not raw:
+                return "unknown"
+            parts = raw.split(" + assoc(", 1)
+            return parts[0].strip() or "unknown"
+
+        def get_site_state_node(site_id: str, site_family: str, state_label: str) -> str:
+            body_state = _site_body_state_label(state_label)
+            key = (site_id, body_state)
+            if key in site_state_map:
+                return site_state_map[key]
+            nid = f"ss{len(site_state_map)}"
+            site_state_map[key] = nid
+            short_label = f"{site_id}\n{body_state}"
+            G.add_node(
+                nid,
+                node_type="site_state",
+                label=short_label,
+                orig_id=f"{site_id}|state={body_state}",
+                display_label=short_label,
+                site_id=site_id,
+                site_family=site_family,
+                state_label=body_state,
+                site_state_label=body_state,
+            )
+            return nid
+
+        def get_reaction_node(row) -> str:
+            signature = (
+                row.site_id,
+                row.coupling_type,
+                tuple(sorted(set(row.transform_types))),
+                tuple(sorted(row.transform_reactants)),
+                tuple(sorted(row.transform_products)),
+                row.site_state_before,
+                row.site_state_after,
+            )
+            if signature in reaction_map:
+                return reaction_map[signature]
+            nid = f"cr{len(reaction_map)}"
+            reaction_map[signature] = nid
+            if row.transform_reactants or row.transform_products:
+                context_short = "rxn"
+            elif row.associated_species_before or row.associated_species_after:
+                context_short = "assoc"
+            else:
+                context_short = "site"
+
+            if row.coupling_type == "reaction_with_site_change":
+                coupling_short = "with_site_change"
+            elif row.coupling_type == "reaction_only_on_site":
+                coupling_short = "on_site"
+            else:
+                coupling_short = "site_only"
+
+            label = f"{coupling_short}\n{context_short}"
+            reactants_joined = " + ".join(row.transform_reactants) if row.transform_reactants else ""
+            products_joined = " + ".join(row.transform_products) if row.transform_products else ""
+            assoc_before_joined = " + ".join(row.associated_species_before) if row.associated_species_before else ""
+            assoc_after_joined = " + ".join(row.associated_species_after) if row.associated_species_after else ""
+            transform_types_joined = " | ".join(row.transform_types) if row.transform_types else ""
+            G.add_node(
+                nid,
+                node_type="reaction",
+                label=label,
+                display_label=label,
+                orig_id=json.dumps(signature, ensure_ascii=False),
+                site_id=row.site_id,
+                site_family=row.site_family,
+                coupling_type=row.coupling_type,
+                coupling_short=coupling_short,
+                context_short=context_short,
+                transform_types=json.dumps(row.transform_types, ensure_ascii=False),
+                transform_types_joined=transform_types_joined,
+                transform_event_ids=json.dumps(row.transform_event_ids, ensure_ascii=False),
+                transform_reactants=json.dumps(row.transform_reactants, ensure_ascii=False),
+                transform_products=json.dumps(row.transform_products, ensure_ascii=False),
+                transform_reactants_joined=reactants_joined,
+                transform_products_joined=products_joined,
+                transform_equation=(
+                    f"{reactants_joined} -> {products_joined}"
+                    if (reactants_joined or products_joined)
+                    else ""
+                ),
+                associated_species_before=json.dumps(row.associated_species_before, ensure_ascii=False),
+                associated_species_after=json.dumps(row.associated_species_after, ensure_ascii=False),
+                associated_species_before_joined=assoc_before_joined,
+                associated_species_after_joined=assoc_after_joined,
+                associated_species_transition=(
+                    f"{assoc_before_joined} -> {assoc_after_joined}"
+                    if (assoc_before_joined or assoc_after_joined)
+                    else ""
+                ),
+                site_state_before=row.site_state_before,
+                site_state_after=row.site_state_after,
+                site_state_transition=f"{row.site_state_before} -> {row.site_state_after}",
+                site_changed=bool(row.site_changed),
+                has_transform=bool(row.has_transform),
+                link_strength=row.link_strength,
+                evidence_bonds=json.dumps(row.evidence_bonds, ensure_ascii=False),
+                weight=0,
+            )
+            return nid
+
+        def add_or_bump_edge(u: str, v: str, **attrs) -> None:
+            if G.has_edge(u, v):
+                G[u][v]["weight"] = int(G[u][v].get("weight", 0)) + 1
+            else:
+                G.add_edge(u, v, weight=1, **attrs)
+
+        for row in coupling_rows:
+            if row.coupling_type == "reaction_only_on_site" and not (row.transform_reactants or row.transform_products):
+                continue
+
+            rid = get_reaction_node(row)
+            G.nodes[rid]["weight"] = int(G.nodes[rid].get("weight", 0)) + 1
+
+            site_before = get_site_state_node(row.site_id, row.site_family, row.site_state_before or "unknown")
+            site_after = get_site_state_node(row.site_id, row.site_family, row.site_state_after or "unknown")
+            add_or_bump_edge(site_before, rid, role="site_before", coupling_type=row.coupling_type)
+            add_or_bump_edge(rid, site_after, role="site_after", coupling_type=row.coupling_type)
+
+            for sp in row.transform_reactants:
+                sid = get_species_node(sp)
+                add_or_bump_edge(sid, rid, role="reactant", coupling_type=row.coupling_type)
+            for sp in row.transform_products:
+                sid = get_species_node(sp)
+                add_or_bump_edge(rid, sid, role="product", coupling_type=row.coupling_type)
+
+        return G
 
     def write_all(
         self,
         out_prefix: str,
         *,
+        transform_events: list[TransformEvent],
         state_frames: list[ReactiveSiteStateFrame],
         events: list[ReactiveSiteEvent],
         joint_reactions: list[JointReactiveSiteReaction],
@@ -194,8 +394,8 @@ Reading tips
                     "new_state",
                     "added_members",
                     "removed_members",
-                    "bound_species_before",
-                    "bound_species_after",
+                    "associated_species_before",
+                    "associated_species_after",
                     "evidence_bonds",
                 ],
             )
@@ -211,8 +411,8 @@ Reading tips
                         "new_state": row.new_state,
                         "added_members": json.dumps(row.added_members, ensure_ascii=False),
                         "removed_members": json.dumps(row.removed_members, ensure_ascii=False),
-                        "bound_species_before": json.dumps(row.bound_species_before, ensure_ascii=False),
-                        "bound_species_after": json.dumps(row.bound_species_after, ensure_ascii=False),
+                        "associated_species_before": json.dumps(row.associated_species_before, ensure_ascii=False),
+                        "associated_species_after": json.dumps(row.associated_species_after, ensure_ascii=False),
                         "evidence_bonds": json.dumps(row.evidence_bonds, ensure_ascii=False),
                     }
                 )
@@ -229,8 +429,8 @@ Reading tips
                     "site_state_after",
                     "reactants",
                     "products",
-                    "bound_species_before",
-                    "bound_species_after",
+                    "associated_species_before",
+                    "associated_species_after",
                     "evidence_bonds",
                 ],
             )
@@ -245,10 +445,64 @@ Reading tips
                         "site_state_after": row.site_state_after,
                         "reactants": json.dumps(row.reactants, ensure_ascii=False),
                         "products": json.dumps(row.products, ensure_ascii=False),
-                        "bound_species_before": json.dumps(row.bound_species_before, ensure_ascii=False),
-                        "bound_species_after": json.dumps(row.bound_species_after, ensure_ascii=False),
+                        "associated_species_before": json.dumps(row.associated_species_before, ensure_ascii=False),
+                        "associated_species_after": json.dumps(row.associated_species_after, ensure_ascii=False),
                         "evidence_bonds": json.dumps(row.evidence_bonds, ensure_ascii=False),
                     }
                 )
+
+        coupling_rows = build_site_reaction_couplings(
+            transform_events=transform_events,
+            site_states=state_frames,
+            site_events=events,
+        )
+        coupling_path = f"{out_prefix}_site_reaction_coupling.csv"
+        with open(coupling_path, "w", newline="", encoding="utf-8") as f:
+            w = csv.DictWriter(
+                f,
+                fieldnames=[
+                    "frame",
+                    "site_id",
+                    "site_family",
+                    "site_state_before",
+                    "site_state_after",
+                    "site_changed",
+                    "has_transform",
+                    "transform_event_ids",
+                    "transform_types",
+                    "transform_reactants",
+                    "transform_products",
+                    "associated_species_before",
+                    "associated_species_after",
+                    "coupling_type",
+                    "link_strength",
+                    "evidence_bonds",
+                ],
+            )
+            w.writeheader()
+            for row in coupling_rows:
+                w.writerow(
+                    {
+                        "frame": row.frame,
+                        "site_id": row.site_id,
+                        "site_family": row.site_family,
+                        "site_state_before": row.site_state_before,
+                        "site_state_after": row.site_state_after,
+                        "site_changed": row.site_changed,
+                        "has_transform": row.has_transform,
+                        "transform_event_ids": json.dumps(row.transform_event_ids, ensure_ascii=False),
+                        "transform_types": json.dumps(row.transform_types, ensure_ascii=False),
+                        "transform_reactants": json.dumps(row.transform_reactants, ensure_ascii=False),
+                        "transform_products": json.dumps(row.transform_products, ensure_ascii=False),
+                        "associated_species_before": json.dumps(row.associated_species_before, ensure_ascii=False),
+                        "associated_species_after": json.dumps(row.associated_species_after, ensure_ascii=False),
+                        "coupling_type": row.coupling_type,
+                        "link_strength": row.link_strength,
+                        "evidence_bonds": json.dumps(row.evidence_bonds, ensure_ascii=False),
+                    }
+                )
+
+        site_graph = self._build_site_aware_graph(coupling_rows)
+        nx.write_graphml(site_graph, f"{out_prefix}_network_site_aware.graphml")
 
         self._write_readme(out_prefix)

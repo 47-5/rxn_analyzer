@@ -186,8 +186,8 @@ class ReactiveSiteEvent:
     new_state: str
     added_members: tuple[int, ...]
     removed_members: tuple[int, ...]
-    bound_species_before: tuple[str, ...]
-    bound_species_after: tuple[str, ...]
+    associated_species_before: tuple[str, ...]
+    associated_species_after: tuple[str, ...]
     evidence_bonds: list[dict]
 
 
@@ -200,6 +200,26 @@ class JointReactiveSiteReaction:
     site_state_after: str
     reactants: tuple[str, ...]
     products: tuple[str, ...]
-    bound_species_before: tuple[str, ...]
-    bound_species_after: tuple[str, ...]
+    associated_species_before: tuple[str, ...]
+    associated_species_after: tuple[str, ...]
+    evidence_bonds: list[dict]
+
+
+@dataclass(frozen=True)
+class SiteReactionCouplingRow:
+    frame: int
+    site_id: str
+    site_family: str
+    site_state_before: str
+    site_state_after: str
+    site_changed: bool
+    has_transform: bool
+    transform_event_ids: tuple[int, ...]
+    transform_types: tuple[str, ...]
+    transform_reactants: tuple[str, ...]
+    transform_products: tuple[str, ...]
+    associated_species_before: tuple[str, ...]
+    associated_species_after: tuple[str, ...]
+    coupling_type: str
+    link_strength: str
     evidence_bonds: list[dict]

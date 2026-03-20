@@ -97,8 +97,5 @@ class OutputWriter:
         with open(f"{out_prefix}_reactions_summary.tsv", "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
 
-        finalize_graph_for_export(legacy)
-        nx.write_graphml(legacy, f"{out_prefix}_network_mixture.graphml")
-
         if frame_species_logger is not None:
             frame_species_logger.finalize(out_prefix)

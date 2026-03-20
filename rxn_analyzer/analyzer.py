@@ -277,6 +277,7 @@ class ReactionAnalyzer:
         if self.reactive_site_pipeline is not None:
             self.reactive_site_output_writer.write_all(
                 out_prefix=out_prefix,
+                transform_events=self.emitter.transform_events,
                 state_frames=self.reactive_site_states if self.config.reactive_site_record_states else [],
                 events=self.reactive_site_tracker.events if self.config.reactive_site_record_events else [],
                 joint_reactions=(
