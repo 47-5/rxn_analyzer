@@ -65,6 +65,9 @@ def run_from_yaml(
     site_file: str | None = None,
     site_index_base: int | None = None,
     site_strict: bool | None = None,
+    reactive_site_file: str | None = None,
+    reactive_site_index_base: int | None = None,
+    reactive_site_strict: bool | None = None,
     base_dir: str | None = None,
     show_progress: bool = True,
     progress_with_total: bool = False,
@@ -80,6 +83,9 @@ def run_from_yaml(
         site_file=site_file,
         site_index_base=site_index_base,
         site_strict=site_strict,
+        reactive_site_file=reactive_site_file,
+        reactive_site_index_base=reactive_site_index_base,
+        reactive_site_strict=reactive_site_strict,
     )
 
     prepared = build_prepared_config(
@@ -117,6 +123,29 @@ def _build_parser() -> argparse.ArgumentParser:
     g.add_argument("--no-site-strict", dest="site_strict", action="store_false", help="Override strict_index_validation=false")
     p.set_defaults(site_strict=None)
 
+    p.add_argument("--reactive-site-file", default=None, help="Override reactive_site.file")
+    p.add_argument(
+        "--reactive-site-index-base",
+        type=int,
+        choices=[0, 1],
+        default=None,
+        help="Override reactive_site.index_base",
+    )
+    g2 = p.add_mutually_exclusive_group()
+    g2.add_argument(
+        "--reactive-site-strict",
+        dest="reactive_site_strict",
+        action="store_true",
+        help="Override reactive_site.strict_core_validation=true",
+    )
+    g2.add_argument(
+        "--no-reactive-site-strict",
+        dest="reactive_site_strict",
+        action="store_false",
+        help="Override reactive_site.strict_core_validation=false",
+    )
+    p.set_defaults(reactive_site_strict=None)
+
     p.add_argument(
         "--base-dir",
         default=None,
@@ -153,6 +182,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         site_file=args.site_file,
         site_index_base=args.site_index_base,
         site_strict=args.site_strict,
+        reactive_site_file=args.reactive_site_file,
+        reactive_site_index_base=args.reactive_site_index_base,
+        reactive_site_strict=args.reactive_site_strict,
         base_dir=args.base_dir,
         show_progress=(not args.no_progress),
         progress_with_total=bool(args.progress_with_total),

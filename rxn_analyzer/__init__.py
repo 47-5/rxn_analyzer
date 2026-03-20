@@ -13,6 +13,13 @@ from .species import (
 )
 from .postprocess_graph import run_pipeline, load_config
 from .network import ensure_bipartite_graph, add_transform_bipartite
+from .site_model import (
+    ReactiveSite,
+    ReactiveSiteDefinition,
+    ReactiveSiteStateFrame,
+    ReactiveSiteEvent,
+    JointReactiveSiteReaction,
+)
 
 __all__ = [
     "Criteria",
@@ -34,6 +41,11 @@ __all__ = [
     "Site",
     "SiteDefinition",
     "SiteAssignment",
+    "ReactiveSite",
+    "ReactiveSiteDefinition",
+    "ReactiveSiteStateFrame",
+    "ReactiveSiteEvent",
+    "JointReactiveSiteReaction",
 
 ]
 

@@ -13,6 +13,10 @@ from .frame_species_logger import FrameSpeciesLogger
 from .output_writer import OutputWriter
 from .baseline_gate import BaselineGate
 from .sites import SiteDefinition
+from .site_model import ReactiveSiteDefinition, ReactiveSiteStateFrame
+from .site_pipeline import ReactiveSitePipeline
+from .site_tracker import ReactiveSiteTracker
+from .site_output import ReactiveSiteOutputWriter
 
 from .species import (
     SmilesStrategy,
@@ -38,6 +42,7 @@ class AnalyzerConfig:
     ads_signature_mode: str = "detailed"
     site_signature_mode: str = "none"
     site_definition: SiteDefinition | None = None
+    reactive_site_definition: ReactiveSiteDefinition | None = None
 
     smiles_recompute_mode: str = "always"
     smiles_mode: str = "combo"
@@ -69,6 +74,10 @@ class AnalyzerConfig:
 
     # NEW: whether to include forward/reverse frame lists in *_reactions_summary.tsv
     reaction_summary_include_frames: bool = True
+
+    reactive_site_record_states: bool = True
+    reactive_site_record_events: bool = True
+    reactive_site_record_joint_reactions: bool = True
 
 
 class ReactionAnalyzer:
@@ -119,6 +128,37 @@ class ReactionAnalyzer:
         )
 
         self.output_writer = OutputWriter()
+        self.reactive_site_pipeline = (
+            ReactiveSitePipeline(self.config.reactive_site_definition)
+            if self.config.reactive_site_definition is not None
+            else None
+        )
+        self.reactive_site_tracker = ReactiveSiteTracker()
+        self.reactive_site_output_writer = ReactiveSiteOutputWriter()
+        self.reactive_site_states: list[ReactiveSiteStateFrame] = []
+
+    def _process_reactive_sites(self, frame: int, atoms: Atoms, edge, sp) -> None:
+        if self.reactive_site_pipeline is None:
+            return
+
+        batch = self.reactive_site_pipeline.analyze(
+            frame=frame,
+            atoms=atoms,
+            slab_mask=edge.slab_mask,
+            cov_edges=edge.cov_edges,
+            ads_edges=edge.ads_edges,
+            components=sp.comps,
+            labels=sp.labels,
+        )
+        if self.config.reactive_site_record_states:
+            self.reactive_site_states.extend(batch.states)
+        next_id = self.reactive_site_tracker.update(
+            frame=frame,
+            states=batch.states,
+            bond_events=edge.bond_events,
+            next_event_id=self.id_counter.value,
+        )
+        self.id_counter.advance_to(next_id)
 
     def _build_smiles_strategy(self) -> SmilesStrategy:
         if self.config.smiles_strategy_impl is not None:
@@ -193,10 +233,12 @@ class ReactionAnalyzer:
         mode, delta = self.baseline.step(frame, sp.multiset)
 
         if mode == "confirmed_now":
+            self._process_reactive_sites(frame, atoms, edge, sp)
             self.mapper.set_prev(sp.comp_labels)
             return
 
         if mode == "warmup":
+            self._process_reactive_sites(frame, atoms, edge, sp)
             if (delta or edge.bond_events) and (not self.config.drop_init_events) and self.config.record_init_events:
                 self.emitter.emit_from_delta(
                     frame=frame,
@@ -220,6 +262,7 @@ class ReactionAnalyzer:
                     add_to_graph=True,
                 )
 
+        self._process_reactive_sites(frame, atoms, edge, sp)
         self.mapper.set_prev(sp.comp_labels)
 
     def write_outputs(self, out_prefix: str):
@@ -231,3 +274,14 @@ class ReactionAnalyzer:
             frame_species_logger=self.frame_logger,
             reaction_summary_include_frames=bool(self.config.reaction_summary_include_frames),
         )
+        if self.reactive_site_pipeline is not None:
+            self.reactive_site_output_writer.write_all(
+                out_prefix=out_prefix,
+                state_frames=self.reactive_site_states if self.config.reactive_site_record_states else [],
+                events=self.reactive_site_tracker.events if self.config.reactive_site_record_events else [],
+                joint_reactions=(
+                    self.reactive_site_tracker.joint_reactions
+                    if self.config.reactive_site_record_joint_reactions
+                    else []
+                ),
+            )

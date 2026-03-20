@@ -11,6 +11,7 @@ from .analyzer import AnalyzerConfig
 from .criteria import Criteria, DistanceHysteresisParams
 from .slab import SlabDefinition
 from .sites import SiteDefinition
+from .site_model import ReactiveSiteDefinition
 
 
 ConfigInput = str | Path | Mapping[str, Any]
@@ -28,6 +29,9 @@ class RunOverrides:
     site_file: str | None = None
     site_index_base: int | None = None
     site_strict: bool | None = None
+    reactive_site_file: str | None = None
+    reactive_site_index_base: int | None = None
+    reactive_site_strict: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -153,6 +157,19 @@ def apply_overrides(cfg: Mapping[str, Any], overrides: RunOverrides | None) -> d
         site_cfg["index_base"] = int(overrides.site_index_base)
     if overrides.site_strict is not None:
         site_cfg["strict_index_validation"] = bool(overrides.site_strict)
+
+    reactive_site_cfg = out.get("reactive_site")
+    if not isinstance(reactive_site_cfg, dict):
+        reactive_site_cfg = {}
+        out["reactive_site"] = reactive_site_cfg
+
+    if overrides.reactive_site_file is not None:
+        reactive_site_cfg["enabled"] = True
+        reactive_site_cfg["file"] = overrides.reactive_site_file
+    if overrides.reactive_site_index_base is not None:
+        reactive_site_cfg["index_base"] = int(overrides.reactive_site_index_base)
+    if overrides.reactive_site_strict is not None:
+        reactive_site_cfg["strict_core_validation"] = bool(overrides.reactive_site_strict)
 
     return out
 
@@ -321,10 +338,34 @@ def _build_site_def(cfg: Mapping[str, Any], base_dir: Path | None) -> SiteDefini
     )
 
 
+def _build_reactive_site_def(cfg: Mapping[str, Any], base_dir: Path | None) -> ReactiveSiteDefinition | None:
+    sc = _get_section(cfg, "reactive_site")
+    enabled = _to_bool(sc.get("enabled", False))
+    if not enabled:
+        return None
+
+    site_file = sc.get("file", None)
+    if not site_file:
+        raise ValueError("reactive_site.enabled=true but reactive_site.file is missing.")
+
+    index_base = int(sc.get("index_base", 0))
+    if index_base not in (0, 1):
+        raise ValueError("reactive_site.index_base must be 0 or 1.")
+
+    strict = _to_bool(sc.get("strict_core_validation", True))
+    site_path = _resolve_path(str(site_file), base_dir)
+    return ReactiveSiteDefinition.from_yaml(
+        site_path,
+        index_base=index_base,
+        strict_core_validation=strict,
+    )
+
+
 def _build_analyzer_config(
     cfg: Mapping[str, Any],
     *,
     site_def: SiteDefinition | None,
+    reactive_site_def: ReactiveSiteDefinition | None,
     out_prefix: str,
     strict_analyzer_fields: bool = False,
 ) -> AnalyzerConfig:
@@ -339,6 +380,8 @@ def _build_analyzer_config(
 
     if site_def is not None:
         a["site_definition"] = site_def
+    if reactive_site_def is not None:
+        a["reactive_site_definition"] = reactive_site_def
 
     # 对齐旧 CLI：记录 frame species + streaming 且未给 path 时，自动补默认路径
     if _to_bool(a.get("record_frame_species", False)) and _to_bool(a.get("frame_species_streaming", True)):
@@ -395,9 +438,11 @@ def build_prepared_config(
     criteria = _build_criteria(merged)
     slab_def = _build_slab_def(merged)
     site_def = _build_site_def(merged, resolved_base)
+    reactive_site_def = _build_reactive_site_def(merged, resolved_base)
     analyzer_cfg = _build_analyzer_config(
         merged,
         site_def=site_def,
+        reactive_site_def=reactive_site_def,
         out_prefix=out_prefix,
         strict_analyzer_fields=strict_analyzer_fields,
     )
