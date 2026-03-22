@@ -1,3 +1,13 @@
+"""Runtime facade for ordinary species analysis.
+
+`SpeciesRuntime` owns the cross-frame interpretation layer for the species pipeline:
+- previous snapshot bookkeeping
+- component mapping between adjacent frames
+- transform-event emission
+
+Single-frame species recognition itself lives in `species.pipeline`.
+"""
+
 from __future__ import annotations
 
 from .mapping import ComponentMapper

@@ -1,3 +1,16 @@
+"""Top-level analysis orchestrator.
+
+This module coordinates the main runtime flow:
+1. build edge/bond state for the current frame
+2. build the species snapshot
+3. build active-site state for the frame
+4. emit ordinary transform events
+5. emit active-site events
+6. write final outputs after the trajectory is complete
+
+Detailed business logic should live in `species/`, `active_site/`, and `graph/`.
+"""
+
 from __future__ import annotations
 from dataclasses import dataclass, field
 
@@ -30,7 +43,7 @@ from .active_site import (
     ActiveSiteRuntime,
 )
 
-from .network import ensure_bipartite_graph
+from .graph import ensure_bipartite_graph
 
 
 @dataclass
@@ -42,8 +55,8 @@ class AnalyzerConfig:
     drop_init_events: bool = False
 
     ads_signature_mode: str = "detailed"
-    site_signature_mode: str = "none"
-    site_definition: SiteDefinition | None = None
+    geometric_site_signature_mode: str = "none"
+    geometric_site_definition: SiteDefinition | None = None
     active_site_definition: ActiveSiteDefinition | None = None
 
     smiles_recompute_mode: str = "always"
@@ -77,11 +90,10 @@ class AnalyzerConfig:
     # NEW: whether to include forward/reverse frame lists in *_reactions_summary.tsv
     reaction_summary_include_frames: bool = True
 
-    reactive_site_record_states: bool = True
-    reactive_site_record_events: bool = True
-    reactive_site_record_joint_reactions: bool = True
+    active_site_record_states: bool = True
+    active_site_record_events: bool = True
+    active_site_record_joint_reactions: bool = True
     active_site_streaming: bool = True
-    reactive_site_streaming: bool = True
 
 
 class ReactionAnalyzer:
@@ -102,8 +114,8 @@ class ReactionAnalyzer:
         self.labeler = SpeciesLabeler(
             wl_iters=self.config.wl_iters,
             ads_signature_mode=self.config.ads_signature_mode,
-            site_signature_mode=self.config.site_signature_mode,
-            site_definition=self.config.site_definition,
+            geometric_site_signature_mode=self.config.geometric_site_signature_mode,
+            geometric_site_definition=self.config.geometric_site_definition,
             smiles_recompute_mode=self.config.smiles_recompute_mode,
             smiles_strategy=self._build_smiles_strategy(),
             smiles_fallback_to_formula_if_suspicious=self.config.smiles_fallback_to_formula_if_suspicious,
@@ -137,9 +149,9 @@ class ReactionAnalyzer:
         self.active_site_runtime = ActiveSiteRuntime(
             definition=self.config.active_site_definition,
             out_prefix=self.out_prefix,
-            record_states=bool(self.config.reactive_site_record_states),
-            record_events=bool(self.config.reactive_site_record_events),
-            record_joint_reactions=bool(self.config.reactive_site_record_joint_reactions),
+            record_states=bool(self.config.active_site_record_states),
+            record_events=bool(self.config.active_site_record_events),
+            record_joint_reactions=bool(self.config.active_site_record_joint_reactions),
             streaming=bool(self.config.active_site_streaming),
         )
 

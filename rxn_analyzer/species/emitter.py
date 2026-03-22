@@ -3,7 +3,7 @@ from __future__ import annotations
 from ..events import TransformEvent
 from ..edges import EdgeType
 from ..tracking import BondEvent
-from ..network import add_transform_bipartite
+from ..graph import add_transform_bipartite
 from .mapping import SplitPlan
 
 

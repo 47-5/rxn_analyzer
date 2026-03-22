@@ -1,3 +1,12 @@
+"""Runtime facade for dynamic active-site analysis.
+
+This layer connects:
+- single-frame active-site state recognition
+- active-site membership summaries for frame-level logging
+- cross-frame active-site event tracking
+- optional streaming/final active-site outputs
+"""
+
 from __future__ import annotations
 
 from ase import Atoms

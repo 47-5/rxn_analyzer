@@ -11,7 +11,7 @@
 - `active_site`
   表示会参与反应、且状态可能随时间变化的活性中心。历史名称是 `reactive_site`。
 
-旧命名仍然兼容，但示例和文档优先使用新名字。
+旧命名不再兼容。配置、CLI 和文档现在统一只使用新名字。
 
 ## 示例文件
 
@@ -253,6 +253,10 @@ py -3 -m rxn_analyzer.runner --config example_config/example_analyzer_clean.yaml
 3. [`rxn_analyzer/active_site/runtime.py`](/D:/code/rxn_analyzer/rxn_analyzer/active_site/runtime.py)
 4. 再按需要深入 `pipeline / mapping / emitter / tracker / coupling`
 
+更完整的开发向说明见：
+
+- [ARCHITECTURE.md](/D:/code/rxn_analyzer/ARCHITECTURE.md)
+
 ## 自动生成 active_site 定义
 
 如果你在分子筛体系里有很多类似的 BAS/LAS，不想手动一个个写 `active_site`，现在可以先用自动生成工具从首帧结构里提取。
@@ -360,7 +364,7 @@ PER_CENTER_NAMING = True
 
 ## 关于旧命名
 
-目前以下旧名字仍然兼容：
+以下旧名字已经废弃，不能再用于新版本配置：
 
 - `slab_definition`
 - `site`
@@ -368,10 +372,11 @@ PER_CENTER_NAMING = True
 - `analyzer.site_signature_mode`
 - `analyzer.reactive_site_record_*`
 
-但从现在开始，推荐优先使用：
+请统一改用：
 
 - `host_definition`
 - `geometric_site`
 - `active_site`
 - `analyzer.geometric_site_signature_mode`
 - `analyzer.active_site_record_*`
+- `analyzer.active_site_streaming`

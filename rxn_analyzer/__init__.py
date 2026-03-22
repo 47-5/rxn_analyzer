@@ -19,7 +19,7 @@ from .species import (
     TransformEmitter,
 )
 from .postprocess_graph import run_pipeline, load_config
-from .network import ensure_bipartite_graph, add_transform_bipartite
+from .graph import ensure_bipartite_graph, add_transform_bipartite
 from .active_site import (
     ActiveSite,
     ActiveSiteDefinition,

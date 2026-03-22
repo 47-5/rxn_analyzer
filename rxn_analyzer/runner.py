@@ -5,7 +5,7 @@ from collections.abc import Sequence
 
 from tqdm import tqdm
 
-from . import network as net
+from . import graph as net
 from .analyzer import ReactionAnalyzer
 from .config_loader import (
     ConfigInput,
@@ -70,15 +70,9 @@ def run_from_yaml(
     out_prefix: str | None = None,
     stride: int | None = None,
     max_frames: int | None = None,
-    site_file: str | None = None,
-    site_index_base: int | None = None,
-    site_strict: bool | None = None,
     geometric_site_file: str | None = None,
     geometric_site_index_base: int | None = None,
     geometric_site_strict: bool | None = None,
-    reactive_site_file: str | None = None,
-    reactive_site_index_base: int | None = None,
-    reactive_site_strict: bool | None = None,
     active_site_file: str | None = None,
     active_site_index_base: int | None = None,
     active_site_strict: bool | None = None,
@@ -87,7 +81,6 @@ def run_from_yaml(
     progress_with_total: bool | None = None,
     reset_node_mapping: bool = True,
     strict_analyzer_fields: bool = False,
-    strict_site_consistency: bool = False,
 ) -> ReactionAnalyzer:
     overrides = RunOverrides(
         traj=traj,
@@ -95,15 +88,9 @@ def run_from_yaml(
         stride=stride,
         max_frames=max_frames,
         progress_with_total=progress_with_total,
-        site_file=site_file,
-        site_index_base=site_index_base,
-        site_strict=site_strict,
         geometric_site_file=geometric_site_file,
         geometric_site_index_base=geometric_site_index_base,
         geometric_site_strict=geometric_site_strict,
-        reactive_site_file=reactive_site_file,
-        reactive_site_index_base=reactive_site_index_base,
-        reactive_site_strict=reactive_site_strict,
         active_site_file=active_site_file,
         active_site_index_base=active_site_index_base,
         active_site_strict=active_site_strict,
@@ -114,7 +101,6 @@ def run_from_yaml(
         overrides=overrides,
         base_dir=base_dir,
         strict_analyzer_fields=strict_analyzer_fields,
-        strict_site_consistency=strict_site_consistency,
     )
 
     return execute_prepared_config(
@@ -137,28 +123,14 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--max-frames", type=int, default=None, help="Override run.max_frames")
 
     # site overrides
-    p.add_argument("--site-file", default=None, help="Override geometric_site.file (legacy alias: site.file)")
     p.add_argument("--geometric-site-file", default=None, help="Override geometric_site.file")
-    p.add_argument("--site-index-base", type=int, choices=[0, 1], default=None, help="Override geometric_site.index_base")
     p.add_argument("--geometric-site-index-base", type=int, choices=[0, 1], default=None, help="Override geometric_site.index_base")
-    g = p.add_mutually_exclusive_group()
-    g.add_argument("--site-strict", dest="site_strict", action="store_true", help="Override geometric_site.strict_index_validation=true")
-    g.add_argument("--no-site-strict", dest="site_strict", action="store_false", help="Override geometric_site.strict_index_validation=false")
-    p.set_defaults(site_strict=None)
     g_geo = p.add_mutually_exclusive_group()
     g_geo.add_argument("--geometric-site-strict", dest="geometric_site_strict", action="store_true", help="Override geometric_site.strict_index_validation=true")
     g_geo.add_argument("--no-geometric-site-strict", dest="geometric_site_strict", action="store_false", help="Override geometric_site.strict_index_validation=false")
     p.set_defaults(geometric_site_strict=None)
 
-    p.add_argument("--reactive-site-file", default=None, help="Override active_site.file (legacy alias: reactive_site.file)")
     p.add_argument("--active-site-file", default=None, help="Override active_site.file")
-    p.add_argument(
-        "--reactive-site-index-base",
-        type=int,
-        choices=[0, 1],
-        default=None,
-        help="Override active_site.index_base",
-    )
     p.add_argument(
         "--active-site-index-base",
         type=int,
@@ -166,20 +138,6 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Override active_site.index_base",
     )
-    g2 = p.add_mutually_exclusive_group()
-    g2.add_argument(
-        "--reactive-site-strict",
-        dest="reactive_site_strict",
-        action="store_true",
-        help="Override active_site.strict_core_validation=true",
-    )
-    g2.add_argument(
-        "--no-reactive-site-strict",
-        dest="reactive_site_strict",
-        action="store_false",
-        help="Override active_site.strict_core_validation=false",
-    )
-    p.set_defaults(reactive_site_strict=None)
     g2a = p.add_mutually_exclusive_group()
     g2a.add_argument(
         "--active-site-strict",
@@ -223,11 +181,6 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Raise error if analyzer section contains unknown keys.",
     )
-    p.add_argument(
-        "--strict-site-consistency",
-        action="store_true",
-        help="Raise error on site/analyzer consistency conflicts (instead of auto-fix).",
-    )
 
     return p
 
@@ -241,15 +194,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         out_prefix=args.out_prefix,
         stride=args.stride,
         max_frames=args.max_frames,
-        site_file=args.site_file,
-        site_index_base=args.site_index_base,
-        site_strict=args.site_strict,
         geometric_site_file=args.geometric_site_file,
         geometric_site_index_base=args.geometric_site_index_base,
         geometric_site_strict=args.geometric_site_strict,
-        reactive_site_file=args.reactive_site_file,
-        reactive_site_index_base=args.reactive_site_index_base,
-        reactive_site_strict=args.reactive_site_strict,
         active_site_file=args.active_site_file,
         active_site_index_base=args.active_site_index_base,
         active_site_strict=args.active_site_strict,
@@ -258,7 +205,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         progress_with_total=args.progress_with_total,
         reset_node_mapping=(not args.no_reset_node_mapping),
         strict_analyzer_fields=bool(args.strict_analyzer_fields),
-        strict_site_consistency=bool(args.strict_site_consistency),
     )
     print(f"[done] outputs written with prefix: {analyzer.config.frame_species_path or args.out_prefix or 'out'}")
     return 0

@@ -26,8 +26,8 @@ class SpeciesLabeler:
         smiles_fallback_to_formula_if_suspicious: bool,
         smiles_allow_charged: bool,
         smiles_allow_dot: bool,
-        site_signature_mode: str = "none",             # NEW
-        site_definition: SiteDefinition | None = None, # NEW
+        geometric_site_signature_mode: str = "none",
+        geometric_site_definition: SiteDefinition | None = None,
     ):
         self.wl_iters = wl_iters
         self.ads_signature_mode = ads_signature_mode
@@ -36,8 +36,8 @@ class SpeciesLabeler:
         self.fallback_if_suspicious = smiles_fallback_to_formula_if_suspicious
         self.allow_charged_smiles = smiles_allow_charged
         self.allow_dot_smiles = smiles_allow_dot
-        self.site_signature_mode = site_signature_mode
-        self.site_definition = site_definition
+        self.geometric_site_signature_mode = geometric_site_signature_mode
+        self.geometric_site_definition = geometric_site_definition
         self._compkey_to_smiles: dict[tuple[frozenset[int], str], str] = {}
 
     def _compute_smiles(self, atoms: Atoms, comp: list[int], cov_edges: set[tuple[int, int]]) -> str:
@@ -71,7 +71,7 @@ class SpeciesLabeler:
         return f"{f}|wl={wl}", wl
 
     def _format_site_suffix(self, asn: SiteAssignment) -> str:
-        mode = (self.site_signature_mode or "none").strip().lower()
+        mode = (self.geometric_site_signature_mode or "none").strip().lower()
         if mode == "none":
             return ""
 
@@ -93,7 +93,9 @@ class SpeciesLabeler:
                 return f"|site={'+'.join(pairs)}|site_amb=1"
             return f"|site={asn.primary_site_id}:{asn.primary_site_type}"
 
-        raise ValueError(f"Unknown site_signature_mode: {self.site_signature_mode}")
+        raise ValueError(
+            f"Unknown geometric_site_signature_mode: {self.geometric_site_signature_mode}"
+        )
 
     def _apply_site_signature(
         self,
@@ -104,12 +106,12 @@ class SpeciesLabeler:
         ads_edges: set[tuple[int, int]],
         slab_edges: set[tuple[int, int]],
     ) -> str:
-        if self.site_definition is None:
+        if self.geometric_site_definition is None:
             return base
-        if (self.site_signature_mode or "none").strip().lower() == "none":
+        if (self.geometric_site_signature_mode or "none").strip().lower() == "none":
             return base
 
-        asn = self.site_definition.assign_component(
+        asn = self.geometric_site_definition.assign_component(
             comp,
             slab_mask,
             ads_edges,
@@ -197,11 +199,11 @@ class SpeciesLabeler:
         out: dict[frozenset[int], dict | None] = {}
         for comp in components:
             comp_key = frozenset(comp)
-            if self.site_definition is None:
+            if self.geometric_site_definition is None:
                 out[comp_key] = None
                 continue
 
-            asn = self.site_definition.assign_component(
+            asn = self.geometric_site_definition.assign_component(
                 comp,
                 slab_mask,
                 ads_edges,
