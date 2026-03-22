@@ -118,7 +118,7 @@ class ReactiveSiteDefinition:
         index_base: int = 0,
         strict_core_validation: bool = True,
     ) -> "ReactiveSiteDefinition":
-        raw = cfg.get("sites", cfg.get("reactive_sites", []))
+        raw = cfg.get("sites", cfg.get("active_sites", cfg.get("reactive_sites", [])))
         if raw is None:
             raw = []
         if not isinstance(raw, list):
@@ -223,3 +223,11 @@ class SiteReactionCouplingRow:
     coupling_type: str
     link_strength: str
     evidence_bonds: list[dict]
+
+
+# Preferred semantic aliases.
+ActiveSite = ReactiveSite
+ActiveSiteDefinition = ReactiveSiteDefinition
+ActiveSiteStateFrame = ReactiveSiteStateFrame
+ActiveSiteEvent = ReactiveSiteEvent
+JointActiveSiteReaction = JointReactiveSiteReaction

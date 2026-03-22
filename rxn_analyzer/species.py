@@ -13,10 +13,9 @@ def connected_components(n_nodes: int, edges: set[tuple[int, int]], allowed: set
     for i, j in edges:
         if i in allowed and j in allowed:
             adj[i].append(j)
-            adj[j].append(i)  # 加两次是因为这是无向图
-
-    seen = set()  # 记录已访问节点
-    comps = []    # 用来收集连通分量结果
+            adj[j].append(i)
+    seen = set()
+    comps = []
     for u in sorted(allowed):
         if u in seen:
             continue
@@ -31,27 +30,27 @@ def connected_components(n_nodes: int, edges: set[tuple[int, int]], allowed: set
                     stack.append(y)
                     comp.append(y)
         comps.append(sorted(comp))
-    return comps  # 得到了一个列表，里面是小列表，小列表里面的数字代表某个连通图(物质)的原子索引
+    return comps
 
 
 def wl_hash(atoms: Atoms, nodes: list[int], cov_edges: set[tuple[int, int]], iters: int = 3) -> str:
     node_set = set(nodes)
     adj = {u: [] for u in nodes}
-    for (i, j) in cov_edges:
-        if i in node_set and j in node_set:  # 遍历所有共价边，只保留“两端都在该分量内”的边（即得到该分量或者用子图的所有节点和边）
+    for i, j in cov_edges:
+        if i in node_set and j in node_set:
             adj[i].append(j)
             adj[j].append(i)
 
-    Z = atoms.numbers
-    labels = {u: f"Z{int(Z[u])}" for u in nodes}  # 初始节点标签 = 原子序数，例如 Z6、Z1
+    z = atoms.numbers
+    labels = {u: f"Z{int(z[u])}" for u in nodes}
 
     for _ in range(iters):
         new_labels = {}
         for u in nodes:
             neigh = sorted(labels[v] for v in adj[u])
-            s = labels[u] + "|" + ",".join(neigh)  # 拼成字符串 s
+            s = labels[u] + "|" + ",".join(neigh)
             h = 1469598103934665603
-            for ch in s.encode("utf-8"):  # 对 s 做 FNV-1a 64-bit 哈希
+            for ch in s.encode("utf-8"):
                 h ^= ch
                 h = (h * 1099511628211) & ((1 << 64) - 1)
             new_labels[u] = f"h{h:016x}"
@@ -67,11 +66,18 @@ def wl_hash(atoms: Atoms, nodes: list[int], cov_edges: set[tuple[int, int]], ite
 
 
 def formula(atoms: Atoms, nodes: list[int]) -> str:
+    if len(nodes) == 2:
+        syms2 = sorted(atoms[i].symbol for i in nodes)
+        if syms2 == ["H", "O"]:
+            return "OH"
+
     syms = [atoms[i].symbol for i in nodes]
     c = Counter(syms)
     keys = []
-    if "C" in c: keys.append("C")
-    if "H" in c: keys.append("H")
+    if "C" in c:
+        keys.append("C")
+    if "H" in c:
+        keys.append("H")
     for k in sorted(c.keys()):
         if k not in ("C", "H"):
             keys.append(k)
@@ -82,11 +88,32 @@ def formula(atoms: Atoms, nodes: list[int]) -> str:
     return "".join(out)
 
 
+def normalize_fragment_smiles(
+    atoms: Atoms,
+    nodes: list[int],
+    cov_edges: set[tuple[int, int]],
+    smiles: str,
+) -> str:
+    if not smiles:
+        return smiles
+
+    if len(nodes) == 2:
+        node_set = set(nodes)
+        n_cov = sum(1 for i, j in cov_edges if i in node_set and j in node_set)
+        syms2 = sorted(atoms[i].symbol for i in nodes)
+        if syms2 == ["H", "O"] and n_cov == 1:
+            return "[OH]"
+
+    return smiles
+
+
 @dataclass(frozen=True)
 class SurfaceSignature:
     n_ads_bonds: int
     slab_coord_hist: tuple[int, ...]
     slab_elements: tuple[str, ...]
+    ads_pairs: tuple[tuple[int, int], ...]
+    ads_pair_labels: tuple[str, ...]
 
 
 def surface_signature(
@@ -97,27 +124,35 @@ def surface_signature(
 ) -> SurfaceSignature | None:
     comp = set(comp_nodes)
     syms = atoms.get_chemical_symbols()
-    per_atom = defaultdict(int)  # 记录分量中每个原子连接 slab 的次数
-    touched = []  # 记录接触到的 slab 元素符号（可能重复）
-    n_ads = 0  # 吸附键总数
+    per_atom: dict[int, int] = defaultdict(int)
+    touched: list[str] = []
+    ads_pairs: list[tuple[int, int]] = []
+    n_ads = 0
 
     for i, j in ads_edges:
-        if i in comp and slab_mask[j]:  # i 在分量中，j 是 slab → 这是一个吸附键
+        if i in comp and slab_mask[j]:
             n_ads += 1
             per_atom[i] += 1
             touched.append(syms[j])
-        elif j in comp and slab_mask[i]:  # j 在分量中，i 是 slab → 同理
+            ads_pairs.append((int(i), int(j)))
+        elif j in comp and slab_mask[i]:
             n_ads += 1
             per_atom[j] += 1
             touched.append(syms[i])
+            ads_pairs.append((int(j), int(i)))
 
     if n_ads == 0:
         return None
+
+    sorted_ads_pairs = tuple(sorted(ads_pairs, key=lambda p: (p[0], p[1])))
+    ads_pair_labels = tuple(f"{syms[ads]}{ads}-{syms[slab]}{slab}" for ads, slab in sorted_ads_pairs)
 
     return SurfaceSignature(
         n_ads_bonds=n_ads,
         slab_coord_hist=tuple(sorted(per_atom.values())),
         slab_elements=tuple(sorted(touched)),
+        ads_pairs=sorted_ads_pairs,
+        ads_pair_labels=ads_pair_labels,
     )
 
 
@@ -222,7 +257,7 @@ def component_smiles_openbabel_3d(
         ob.OBAromTyper().AssignAromaticFlags(mol)
 
         conv = ob.OBConversion()
-        conv.SetOutFormat("can")  # canonical SMILES
+        conv.SetOutFormat("can")
         smi = conv.WriteString(mol).strip()
         smi = smi.split()[0].strip() if smi else ""
 
@@ -278,18 +313,17 @@ def component_smiles_from_edges_rdkit(
     try:
         from rdkit import Chem  # type: ignore
     except Exception:
-        return None, False  # RDKit not available
+        return None, False
 
     try:
-        node_set = set(nodes)  # 用于快速判断边是否在该分量内
-        idx_map: dict[int, int] = {}  # 原子索引（ASE 全局索引）→ RDKit 内部索引的映射
-
+        node_set = set(nodes)
+        idx_map: dict[int, int] = {}
         rw = Chem.RWMol()
         for a in nodes:
             rid = rw.AddAtom(Chem.Atom(int(atoms.numbers[a])))
             idx_map[a] = rid
 
-        for (i, j) in cov_edges:
+        for i, j in cov_edges:
             if i in node_set and j in node_set:
                 ri = idx_map[i]
                 rj = idx_map[j]
@@ -301,7 +335,7 @@ def component_smiles_from_edges_rdkit(
             Chem.SanitizeMol(mol)
 
         mol_use = mol
-        if hide_hs and mol_use.GetNumHeavyAtoms() > 0:  # 出错就忽略，继续用原分子
+        if hide_hs and mol_use.GetNumHeavyAtoms() > 0:
             try:
                 m2 = Chem.RemoveHs(mol_use)
                 if m2.GetNumAtoms() > 0:
@@ -422,7 +456,9 @@ class SmilesEdgesRDKitStrategy(SmilesStrategy):
     fallback: SmilesStrategy | None = None
 
     def compute(self, atoms: Atoms, nodes: list[int], cov_edges: set[tuple[int, int]]) -> str:
-        smi = SmilesRDKitTopologyStrategy(sanitize=self.sanitize, hide_hs=self.hide_hs).compute(atoms, nodes, cov_edges)
+        smi = SmilesRDKitTopologyStrategy(sanitize=self.sanitize, hide_hs=self.hide_hs).compute(
+            atoms, nodes, cov_edges
+        )
         if smi:
             return smi
         if self.fallback is not None:

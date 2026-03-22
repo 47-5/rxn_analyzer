@@ -111,6 +111,7 @@ def build_inst_state_strict_hysteresis(
 @dataclass
 class EdgeStep:
     slab_mask: np.ndarray
+    slab_edges: set[tuple[int, int]]
     cov_edges: set[tuple[int, int]]
     ads_edges: set[tuple[int, int]]
     bond_events: list[BondEvent]
@@ -136,9 +137,11 @@ class EdgePipeline:
 
         cov_edges = self.tracker.confirmed_edges(EdgeType.COV)
         ads_edges = self.tracker.confirmed_edges(EdgeType.ADS)
+        slab_edges = self.tracker.confirmed_edges(EdgeType.SLAB)
 
         return EdgeStep(
             slab_mask=slab_mask,
+            slab_edges=slab_edges,
             cov_edges=cov_edges,
             ads_edges=ads_edges,
             bond_events=bond_events_frame,

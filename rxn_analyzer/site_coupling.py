@@ -40,6 +40,9 @@ def build_site_reaction_couplings(
     states_by_frame_site: dict[tuple[int, str], ReactiveSiteStateFrame] = {
         (row.frame, row.site_id): row for row in site_states
     }
+    site_ids_by_frame: dict[int, list[str]] = defaultdict(list)
+    for row in site_states:
+        site_ids_by_frame[int(row.frame)].append(row.site_id)
     site_event_map: dict[tuple[int, str], ReactiveSiteEvent] = {
         (row.frame, row.site_id): row for row in site_events
     }
@@ -57,7 +60,7 @@ def build_site_reaction_couplings(
     rows: list[SiteReactionCouplingRow] = []
 
     for frame in frames:
-        curr_sites = sorted(site_id for f, site_id in states_by_frame_site if f == frame)
+        curr_sites = sorted(site_ids_by_frame.get(frame, []))
         for site_id in curr_sites:
             curr = states_by_frame_site[(frame, site_id)]
             prev = states_by_frame_site.get((frame - 1, site_id))

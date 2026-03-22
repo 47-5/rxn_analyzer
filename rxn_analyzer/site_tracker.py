@@ -44,8 +44,14 @@ class ReactiveSiteTracker:
         states: list[ReactiveSiteStateFrame],
         bond_events: list[BondEvent],
         next_event_id: int,
+        *,
+        emit_events: bool = True,
     ) -> int:
         curr_map = {s.site_id: s for s in states}
+
+        if not emit_events:
+            self.prev_states = curr_map
+            return next_event_id
 
         for site_id, curr in curr_map.items():
             prev = self.prev_states.get(site_id)

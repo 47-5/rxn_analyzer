@@ -1,0 +1,84 @@
+run:
+  traj: "../example_traj/md.extxyz"
+  out_prefix: "example_full"
+  stride: 1
+  max_frames: null
+  progress_with_total: true
+
+criteria:
+  persist: 5
+  cooldown: 3
+  cov:
+    form: 1.15
+    break: 1.25
+    max_neighbors: null
+  ads:
+    form: 1.25
+    break: 1.40
+    max_neighbors: null
+  slab:
+    form: 1.35
+    break: 1.55
+    max_neighbors: 12
+
+host_definition:
+  mode: "elements"
+  elements: ["Pt"]
+  indices: []
+  # index_base 只在 mode="indices" 时有意义：
+  # 0 表示按 0-based 输入
+  # 1 表示按 1-based 输入，加载时会自动转成内部 0-based
+  index_base: 0
+  # invert=true 表示对最终选中的 host 集合做反选
+  # 例如：
+  # mode: "indices"
+  # indices: ["1-20", 22, "26-100"]
+  # index_base: 1
+  # invert: true
+  # 表示“除了这些索引以外，其余原子都算 host”
+  invert: false
+
+analyzer:
+  wl_iters: 3
+  baseline_persist: 5
+  record_init_events: true
+  drop_init_events: false
+  ads_signature_mode: "detailed"
+  geometric_site_signature_mode: "type"
+  smiles_recompute_mode: "always"
+  smiles_mode: "rdkit_topology"
+  smiles_combo_order: ["rdkit_topology", "rdkit_3d", "openbabel_3d"]
+  smiles_combo_treat_suspicious_as_failure: true
+  smiles_combo_prefer_charged: false
+  smiles_allow_charged: true
+  smiles_allow_dot: false
+  rdkit_sanitize: true
+  rdkit_hide_hs: false
+  smiles_fallback_to_formula_if_suspicious: true
+  split_by_component: true
+  component_overlap_min: 0.0
+  component_overlap_mode: "symmetric"
+  require_component_mapping: true
+  split_component_keep_bond_evidence: true
+  record_frame_species: true
+  frame_species_include_counts: true
+  frame_species_include_components: true
+  frame_species_streaming: true
+  frame_species_path: null
+  reaction_summary_include_frames: true
+  active_site_record_states: true
+  active_site_record_events: true
+  active_site_record_joint_reactions: true
+  active_site_streaming: true
+
+geometric_site:
+  enabled: true
+  file: "example_site.yaml"
+  index_base: 0
+  strict_index_validation: true
+
+active_site:
+  enabled: true
+  file: "example_reactive_site.yaml"
+  index_base: 0
+  strict_core_validation: true

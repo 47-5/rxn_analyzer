@@ -8,6 +8,7 @@ from .species import (
     connected_components,
     wl_hash,
     formula,
+    normalize_fragment_smiles,
     surface_signature,
     is_suspicious_smiles,
     SmilesStrategy,
@@ -41,6 +42,7 @@ class SpeciesLabeler:
 
     def _compute_smiles(self, atoms: Atoms, comp: list[int], cov_edges: set[tuple[int, int]]) -> str:
         smi = self.smiles_strategy.compute(atoms, comp, cov_edges) or ""
+        smi = normalize_fragment_smiles(atoms, comp, cov_edges, smi)
         if self.fallback_if_suspicious and smi and is_suspicious_smiles(
             smi,
             allow_charged=self.allow_charged_smiles,
@@ -96,16 +98,24 @@ class SpeciesLabeler:
     def _apply_site_signature(
         self,
         base: str,
+        atoms: Atoms,
         comp: list[int],
         slab_mask: np.ndarray,
         ads_edges: set[tuple[int, int]],
+        slab_edges: set[tuple[int, int]],
     ) -> str:
         if self.site_definition is None:
             return base
         if (self.site_signature_mode or "none").strip().lower() == "none":
             return base
 
-        asn = self.site_definition.assign_component(comp, slab_mask, ads_edges)
+        asn = self.site_definition.assign_component(
+            comp,
+            slab_mask,
+            ads_edges,
+            atoms=atoms,
+            slab_edges=slab_edges,
+        )
         if asn is None:
             return base
 
@@ -118,6 +128,7 @@ class SpeciesLabeler:
         comp: list[int],
         slab_mask: np.ndarray,
         ads_edges: set[tuple[int, int]],
+        slab_edges: set[tuple[int, int]],
     ) -> str:
         surf = surface_signature(atoms, comp, slab_mask, ads_edges)
 
@@ -130,13 +141,20 @@ class SpeciesLabeler:
                 out = base
             else:
                 out = (
-                    f"{base}|ads(n={surf.n_ads_bonds},coord={list(surf.slab_coord_hist)},slab={list(surf.slab_elements)})"
+                    f"{base}|ads(n={surf.n_ads_bonds},coord={list(surf.slab_coord_hist)},"
+                    f"slab={list(surf.slab_elements)})"
                 )
+        elif self.ads_signature_mode == "topology":
+            if surf is None:
+                out = base
+            else:
+                pair_text = ",".join(surf.ads_pair_labels)
+                out = f"{base}|ads(n={surf.n_ads_bonds},pairs=[{pair_text}])"
         else:
             raise ValueError(f"Unknown ads_signature_mode: {self.ads_signature_mode}")
 
         # NEW: append site info after ads signature
-        out = self._apply_site_signature(out, comp, slab_mask, ads_edges)
+        out = self._apply_site_signature(out, atoms, comp, slab_mask, ads_edges, slab_edges)
         return out
 
     def labels_for_components(
@@ -146,13 +164,63 @@ class SpeciesLabeler:
         cov_edges: set[tuple[int, int]],
         ads_edges: set[tuple[int, int]],
         slab_mask: np.ndarray,
+        slab_edges: set[tuple[int, int]],
     ) -> list[str]:
         labels: list[str] = []
         for comp in components:
             base, _wl = self._base_label(atoms, comp, cov_edges)
-            lbl = self._apply_ads_signature(base, atoms, comp, slab_mask, ads_edges)
+            lbl = self._apply_ads_signature(base, atoms, comp, slab_mask, ads_edges, slab_edges)
             labels.append(lbl)
         return labels
+
+    def ads_pairs_for_components(
+        self,
+        atoms: Atoms,
+        components: list[list[int]],
+        ads_edges: set[tuple[int, int]],
+        slab_mask: np.ndarray,
+    ) -> dict[frozenset[int], list[str]]:
+        out: dict[frozenset[int], list[str]] = {}
+        for comp in components:
+            surf = surface_signature(atoms, comp, slab_mask, ads_edges)
+            out[frozenset(comp)] = list(surf.ads_pair_labels) if surf is not None else []
+        return out
+
+    def site_assignments_for_components(
+        self,
+        atoms: Atoms,
+        components: list[list[int]],
+        ads_edges: set[tuple[int, int]],
+        slab_mask: np.ndarray,
+        slab_edges: set[tuple[int, int]],
+    ) -> dict[frozenset[int], dict | None]:
+        out: dict[frozenset[int], dict | None] = {}
+        for comp in components:
+            comp_key = frozenset(comp)
+            if self.site_definition is None:
+                out[comp_key] = None
+                continue
+
+            asn = self.site_definition.assign_component(
+                comp,
+                slab_mask,
+                ads_edges,
+                atoms=atoms,
+                slab_edges=slab_edges,
+            )
+            if asn is None:
+                out[comp_key] = None
+                continue
+
+            out[comp_key] = {
+                "primary_site_id": asn.primary_site_id,
+                "primary_site_type": asn.primary_site_type,
+                "ambiguous": bool(asn.ambiguous),
+                "candidate_sites": [list(x) for x in asn.candidate_sites],
+                "n_ads_bonds": int(asn.n_ads_bonds),
+                "touched_host_atoms": list(asn.touched_host_atoms),
+            }
+        return out
 
 
 @dataclass
@@ -161,6 +229,8 @@ class SpeciesFrame:
     labels: list[str]
     multiset: Counter[str]
     comp_labels: dict[frozenset[int], str]
+    comp_ads_pairs: dict[frozenset[int], list[str]]
+    comp_site_assignments: dict[frozenset[int], dict | None]
 
 
 class SpeciesPipeline:
@@ -173,17 +243,28 @@ class SpeciesPipeline:
         cov_edges: set[tuple[int, int]],
         ads_edges: set[tuple[int, int]],
         slab_mask: np.ndarray,
+        slab_edges: set[tuple[int, int]],
     ) -> SpeciesFrame:
         non_slab = {i for i in range(len(atoms)) if not slab_mask[i]}
         comps = connected_components(len(atoms), cov_edges, non_slab)
 
-        labels = self.labeler.labels_for_components(atoms, comps, cov_edges, ads_edges, slab_mask)
+        labels = self.labeler.labels_for_components(atoms, comps, cov_edges, ads_edges, slab_mask, slab_edges)
         multiset = Counter(labels)
         comp_labels = {frozenset(c): lbl for c, lbl in zip(comps, labels)}
+        comp_ads_pairs = self.labeler.ads_pairs_for_components(atoms, comps, ads_edges, slab_mask)
+        comp_site_assignments = self.labeler.site_assignments_for_components(
+            atoms,
+            comps,
+            ads_edges,
+            slab_mask,
+            slab_edges,
+        )
 
         return SpeciesFrame(
             comps=comps,
             labels=labels,
             multiset=multiset,
             comp_labels=comp_labels,
+            comp_ads_pairs=comp_ads_pairs,
+            comp_site_assignments=comp_site_assignments,
         )

@@ -1,6 +1,6 @@
 from .criteria import Criteria, DistanceHysteresisParams
-from .slab import SlabDefinition
-from .sites import Site, SiteDefinition, SiteAssignment
+from .slab import HostDefinition, SlabDefinition
+from .sites import Site, SiteAssignment, SiteDefinition
 from .analyzer import ReactionAnalyzer, AnalyzerConfig
 from .species import (
     SmilesStrategy,
@@ -14,6 +14,11 @@ from .species import (
 from .postprocess_graph import run_pipeline, load_config
 from .network import ensure_bipartite_graph, add_transform_bipartite
 from .site_model import (
+    ActiveSite,
+    ActiveSiteDefinition,
+    ActiveSiteEvent,
+    ActiveSiteStateFrame,
+    JointActiveSiteReaction,
     ReactiveSite,
     ReactiveSiteDefinition,
     ReactiveSiteStateFrame,
@@ -21,10 +26,15 @@ from .site_model import (
     JointReactiveSiteReaction,
 )
 
+GeometricSite = Site
+GeometricSiteDefinition = SiteDefinition
+GeometricSiteAssignment = SiteAssignment
+
 __all__ = [
     "Criteria",
     "DistanceHysteresisParams",
     "SlabDefinition",
+    "HostDefinition",
     "ReactionAnalyzer",
     "AnalyzerConfig",
     "SmilesStrategy",
@@ -41,11 +51,19 @@ __all__ = [
     "Site",
     "SiteDefinition",
     "SiteAssignment",
+    "GeometricSite",
+    "GeometricSiteDefinition",
+    "GeometricSiteAssignment",
     "ReactiveSite",
     "ReactiveSiteDefinition",
     "ReactiveSiteStateFrame",
     "ReactiveSiteEvent",
     "JointReactiveSiteReaction",
+    "ActiveSite",
+    "ActiveSiteDefinition",
+    "ActiveSiteStateFrame",
+    "ActiveSiteEvent",
+    "JointActiveSiteReaction",
 
 ]
 

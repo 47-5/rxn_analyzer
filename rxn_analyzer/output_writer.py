@@ -23,6 +23,7 @@ class OutputWriter:
         reaction_summary_include_frames: bool = True,
     ) -> None:
         tf_path = f"{out_prefix}_events_transform.csv"
+        print(f"[write] {tf_path}")
         with open(tf_path, "w", newline="", encoding="utf-8") as f:
             w = csv.DictWriter(
                 f,
@@ -44,6 +45,7 @@ class OutputWriter:
                 )
 
         be_path = f"{out_prefix}_events_bonds.csv"
+        print(f"[write] {be_path}")
         with open(be_path, "w", newline="", encoding="utf-8") as f:
             w = csv.DictWriter(
                 f,
@@ -65,6 +67,7 @@ class OutputWriter:
                     }
                 )
 
+        print(f"[write] {out_prefix}_network.graphml")
         finalize_graph_for_export(graph)
         nx.write_graphml(graph, f"{out_prefix}_network.graphml")
 
@@ -94,7 +97,9 @@ class OutputWriter:
                 sort_by="total",
             )
 
-        with open(f"{out_prefix}_reactions_summary.tsv", "w", encoding="utf-8") as f:
+        summary_path = f"{out_prefix}_reactions_summary.tsv"
+        print(f"[write] {summary_path}")
+        with open(summary_path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
 
         if frame_species_logger is not None:

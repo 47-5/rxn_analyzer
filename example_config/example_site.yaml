@@ -1,43 +1,75 @@
-# sites.yaml
+# example_site.yaml
 # ============================================================
-# 位点定义文件（SiteDefinition）
+# 表面位点定义完整示例
 #
-# 本文件用于定义“表面位点”（如 top / bridge / fcc / hcp），
-# 程序会根据 adsorption 边（吸附键）把每个组分映射到最可能的位点。
+# 这个文件用于给“吸附组分”分配表面位点标签，例如：
+# - top
+# - bridge
+# - fcc
+# - hcp
+# - step
 #
-# 与 analyzer_config.yaml 的关联：
-# - site.enabled: true
-# - site.file: "sites.yaml"
-# - site.index_base: 0 或 1   <-- 必须与你这里 atoms 的编号习惯一致
+# 它服务于普通的 species 标签增强功能，对应主配置中的：
+#   site.enabled: true
+#   site.file: "example_site.yaml"
 #
-# 支持两种根键名（等价）：
-# - sites              （推荐）
-# - site_definitions   （兼容）
+# 搭配主配置中的：
+#   analyzer.site_signature_mode: "type" / "id" / "type+id"
+# 就可以把位点信息追加到物种标签后面。
+#
+# 这个文件支持两种思路：
+# 1. 手工定义位点
+# 2. 自动按局部几何识别位点（auto_site）
+#
+# 两种方式可以同时存在，程序会把它们都当作候选位点参与打分。
+# ============================================================
+
+
+# ============================================================
+# 一、手工定义位点
+# ============================================================
+#
+# 支持的根键名：
+# - sites              推荐写法
+# - site_definitions   兼容旧写法
+#
+# 每个 site 条目的字段：
+# - id:
+#   位点唯一 ID。整个文件中不能重复。
+#
+# - type:
+#   位点类型标签。程序不会限制你必须写什么，
+#   但常用的是：top / bridge / fcc / hcp / hollow / step / custom。
+#
+# - atoms:
+#   这个位点对应的 slab 原子索引列表。
+#   这些索引必须和 analyzer 配置里的 site.index_base 一致：
+#   - index_base: 0 -> 这里写 0-based
+#   - index_base: 1 -> 这里写 1-based
+#
+# 可选字段：
+# - name:
+#   便于人类阅读的说明，不参与算法。
+#
+# - priority:
+#   当多个候选位点吸附命中情况相同，程序会使用 priority 打破平局。
+#   一般可理解为“更具体 / 更重要”的位点给更高优先级。
+#
+# 当前程序内部打分顺序：
+# 1. n_ads_bond_hits       命中的吸附键数，越大越优先
+# 2. n_unique_host_atoms   命中的不同 slab 原子数，越大越优先
+# 3. priority              越大越优先
+# 4. 若仍完全并列，则按 site_id 字典序选 primary，并标记 ambiguous=1
 # ============================================================
 
 sites:
   # ----------------------------------------------------------
-  # 每个 site 条目必填字段：
-  # - id      : 位点唯一ID（全文件不能重复）
-  # - type    : 位点类型（如 top/bridge/fcc/hcp/custom）
-  # - atoms   : 该位点关联的“宿主原子索引”列表
-  #
-  # 可选字段：
-  # - name     : 人类可读名称
-  # - priority : 优先级（默认0；仅在前两级评分并列时用于打破平局）
-  #
-  # 评分规则（程序内部）：
-  # 1) n_ads_bond_hits      吸附键命中数（越大越优）
-  # 2) n_unique_host_atoms  命中的不同宿主原子数（越大越优）
-  # 3) priority             越大越优
-  #
-  # 若仍完全并列，则按 site_id 字典序选 primary，并标记 ambiguous=1。
+  # top 位示例
   # ----------------------------------------------------------
-
-  # ===== 顶位（top）示例 =====
+  # top 位通常对应单个表面原子。
   - id: "top_001"
     type: "top"
-    atoms: [0]              # 0-based 示例（若 index_base=1，则这里写 [1]）
+    atoms: [0]
     name: "top above Pt(0)"
     priority: 10
 
@@ -47,66 +79,160 @@ sites:
     name: "top above Pt(1)"
     priority: 10
 
-  # ===== 桥位（bridge）示例 =====
+  # ----------------------------------------------------------
+  # bridge 位示例
+  # ----------------------------------------------------------
+  # bridge 位通常对应两个相邻表面原子之间。
   - id: "bridge_001"
     type: "bridge"
     atoms: [0, 1]
-    name: "bridge between Pt(0)-Pt(1)"
+    name: "bridge between Pt(0) and Pt(1)"
     priority: 20
 
   - id: "bridge_002"
     type: "bridge"
     atoms: [1, 2]
-    name: "bridge between Pt(1)-Pt(2)"
+    name: "bridge between Pt(1) and Pt(2)"
     priority: 20
 
-  # ===== 三重位（fcc / hcp）示例 =====
+  # ----------------------------------------------------------
+  # hollow 位示例
+  # ----------------------------------------------------------
+  # 三重 hollow 通常由三个表面原子共同定义。
+  # 如果是 close-packed 金属表面，常见区分为 fcc / hcp。
   - id: "fcc_001"
     type: "fcc"
     atoms: [0, 1, 2]
-    name: "fcc hollow"
+    name: "fcc hollow on top-layer triangle"
     priority: 30
 
   - id: "hcp_001"
     type: "hcp"
     atoms: [3, 4, 5]
-    name: "hcp hollow"
+    name: "hcp hollow on top-layer triangle"
     priority: 30
 
-  # ===== 自定义类型示例 =====
+  # ----------------------------------------------------------
+  # 自定义位点示例
+  # ----------------------------------------------------------
+  # 你也可以定义任何自定义 type。
+  # 例如台阶位、边缘位、缺陷位等。
   - id: "step_edge_01"
     type: "step"
     atoms: [10, 11, 12]
-    name: "step-edge custom site"
+    name: "custom step-edge site"
     priority: 50
 
 
 # ============================================================
-# 常见坑与检查清单
+# 二、自动位点识别（auto_site）
 # ============================================================
 #
-# 1) 索引基准必须一致
-#    - 若 analyzer_config.yaml 中 site.index_base: 0
-#      则此文件 atoms 应使用 0-based（ASE 默认）
-#    - 若 site.index_base: 1
-#      则此文件 atoms 写 1-based，程序会自动减1
+# 如果开启 auto_site，程序会根据“当前吸附组分接触到的 slab 原子”
+# 自动生成候选位点，并与上面的手工 sites 一起参与打分。
 #
-# 2) id 必须唯一
-#    - 重复 id 会直接报错
+# 当前自动识别支持：
+# - top
+# - bridge
+# - fcc
+# - hcp
+# - fourfold
 #
-# 3) atoms 不能为空、不能重复、必须是整数
-#    - 例如 atoms: [1, 1, 2] 会报 duplicate
+# 适用场景：
+# - 你不想逐个手工列出所有位点
+# - 表面比较规则，希望按几何关系自动识别明显不同的位点
 #
-# 4) strict_index_validation 的影响（在 analyzer_config.yaml 的 site 段）
-#    - true: 越界索引或“非slab原子索引”会报错
-#    - false: 非法索引会被跳过（但可能导致位点分配变弱）
+# 注意：
+# - fcc / hcp 的区分依赖表面分层和亚表层匹配
+# - 如果表面强烈重构、很粗糙，结果可能没那么稳定
+# - 如果你只想用自动位点识别，可以把上面的 sites 留空
+# ============================================================
+
+auto_site:
+  # 是否启用自动位点识别。
+  enabled: true
+
+  # 允许自动生成哪些类型的位点。
+  # 可设置值的常见组合：
+  # - ["top", "bridge"]
+  # - ["top", "bridge", "fcc", "hcp"]
+  # - ["top", "bridge", "fcc", "hcp", "fourfold"]
+  allowed_types: ["top", "bridge", "fcc", "hcp", "fourfold"]
+
+  # 生成 bridge 候选位点时，是否要求两个 slab 原子之间存在 slab 连边。
+  # true:
+  #   更保守，只把局部拓扑相邻的两原子当作 bridge
+  # false:
+  #   只要同时接触就可能生成 bridge
+  bridge_requires_edge: true
+
+  # 生成 hollow 候选位点时，是否要求三原子构成完整三角形。
+  # true:
+  #   更适合规则表面
+  # false:
+  #   更宽松
+  hollow_requires_complete_triangle: true
+
+  # 生成 fourfold 候选位点时，是否要求四原子近似形成一个局部环。
+  # true:
+  #   更保守
+  # false:
+  #   更宽松
+  fourfold_requires_cycle: true
+
+  # 表面分层时的高度容差。
+  # 用于判断哪些原子属于同一层。
+  # 值越大，分层越宽松。
+  layer_tolerance: 0.75
+
+  # 区分 fcc / hcp 时，判断 hollow 中心正下方是否有亚表层原子的横向容差。
+  # 值越大，越容易判成 hcp。
+  subsurface_match_tolerance: 1.25
+
+  # 不同自动位点类型的默认优先级。
+  # 仅在前两级打分相同的情况下起作用。
+  type_priorities:
+    top: 10
+    bridge: 20
+    fcc: 30
+    hcp: 30
+    hollow: 30
+    fourfold: 40
+
+
+# ============================================================
+# 三、常见使用方式
+# ============================================================
 #
-# 5) 如果 site.enabled=false
-#    - 本文件不会参与分析（建议 site.file 设为 null）
+# 1. 纯手工位点定义
+#    - 保留 sites
+#    - auto_site.enabled: false
 #
-# 6) site_signature_mode 建议
-#    - type     : 标签更紧凑，适合统计
-#    - id       : 追踪具体位点最清晰
-#    - type+id  : 信息最全，标签更长
+# 2. 纯自动位点识别
+#    - sites: []
+#    - auto_site.enabled: true
+#
+# 3. 手工 + 自动混合
+#    - 同时保留两部分
+#    - 适合把关键缺陷位手工定义、普通 terrace 位自动识别
+#
+# ============================================================
+# 四、常见坑
+# ============================================================
+#
+# 1. atoms 索引基准必须和 analyzer 中的 site.index_base 一致
+#
+# 2. 手工定义的 atoms 必须是 slab 原子索引
+#
+# 3. 同一个文件里 id 必须唯一
+#
+# 4. 如果 analyzer.site_signature_mode="none"
+#    那么即使这里配置正确，位点信息也不会进入最终物种标签
+#
+# 5. 如果 site.enabled=false
+#    这个文件不会参与分析
+#
+# 6. 自动位点识别依赖 slab 边和 ads 边判定
+#    如果 criteria.slab / criteria.ads 设置不合理，自动位点质量也会受影响
 #
 # ============================================================

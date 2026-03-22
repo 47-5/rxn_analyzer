@@ -9,6 +9,11 @@ def formula_from_atoms(atoms: Atoms, indices: list[int] | tuple[int, ...]) -> st
     if not indices:
         return "bare"
 
+    if len(indices) == 2:
+        syms2 = sorted(atoms[i].symbol for i in indices)
+        if syms2 == ["H", "O"]:
+            return "OH"
+
     syms = [atoms[i].symbol for i in indices]
     counts = Counter(syms)
 

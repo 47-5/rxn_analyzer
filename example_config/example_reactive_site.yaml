@@ -1,9 +1,213 @@
-sites:
+# example_reactive_site.yaml
+# ============================================================
+# active site 定义完整示例
+#
+# 这个文件用于定义“反应位点”或“活性中心”，让程序跟踪某个局部位点
+# 在轨迹中经历的状态变化。
+#
+# 和普通的 site 文件区别：
+# - site 文件更偏“给物种打标签”，例如 top / bridge / fcc
+# - active_site 文件更偏“跟踪活性中心状态变化”
+#
+# 对应主配置中的：
+#   active_site.enabled: true
+#   active_site.file: "example_reactive_site.yaml"
+#
+# 典型使用场景：
+# - 跟踪酸位、金属单原子位、缺陷位、配位位点
+# - 观察该位点上形成了什么中间体
+# - 记录该位点状态的变化事件
+# ============================================================
 
+
+# 支持的根键名：
+# - sites           推荐写法
+# - reactive_sites  历史兼容写法
+sites:
+  # ----------------------------------------------------------
+  # 示例 1：Ga 路易斯酸位
+  # ----------------------------------------------------------
   - id: "LAS_GA_01"
+
+    # family:
+    # 位点家族名称，用于把类似位点归成一类。
+    # 例如：
+    # - LAS_Ga
+    # - BAS
+    # - Pt_top
+    # - defect_oxygen_vacancy
     family: "LAS_Ga"
+
+    # core_members:
+    # 定义这个 active site 的“核心 host 原子”。
+    # 这些原子必须属于当前 slab。
+    #
+    # 程序会用这些核心原子来判断：
+    # - 哪些吸附物直接接触这个位点
+    # - 哪些物种属于这个位点的状态
     core_members: [576]
+
+    # initial_state_members:
+    # 初始状态就属于该位点的非 slab 原子。
+    # 常用于：
+    # - 初始就带有 OH / H / ligand 的位点
+    # - 需要把某些原子视为位点固有组成部分
+    #
+    # 如果没有，就写空列表。
     initial_state_members: []
+
+    # allowed_state_elements:
+    # 限定位点状态中允许纳入哪些元素。
+    # 程序在构建 intrinsic / incorporated / associated 状态时，
+    # 只会保留这些元素的非 slab 原子。
+    #
+    # 常见写法：
+    # - ["H", "O"]
+    # - ["H", "O", "C"]
+    # - []     表示不过滤元素
     allowed_state_elements: ["H", "O", "C"]
+
+    # max_state_members:
+    # 位点状态中最多保留多少个非 slab 原子。
+    # 用于限制一个 active site 吞入过多原子，避免状态变得过大。
+    #
+    # 可设置值：
+    # - null: 不限制
+    # - 正整数: 最多保留 N 个原子
     max_state_members: 12
+
+    # rule_profile:
+    # 规则配置名称。
+    # 当前代码里主要作为保留接口 / 元数据标签使用，
+    # 可用于区分不同类型位点未来采用不同规则。
     rule_profile: "ga_las_default"
+
+    # metadata:
+    # 纯附加信息字段，不直接参与核心算法。
+    # 可以放便于后处理和人工理解的信息。
+    metadata:
+      description: "Single Ga Lewis acid site"
+      support: "oxide"
+      note: "Example active site for tracking oxygenate chemistry"
+
+
+  # ----------------------------------------------------------
+  # 示例 2：Brønsted 酸位
+  # ----------------------------------------------------------
+  # 这个例子演示：
+  # - core_members 可以有多个 slab 原子
+  # - initial_state_members 可以预先包含位点固有的 H / O
+  - id: "BAS_01"
+    family: "BAS"
+    core_members: [120, 121]
+    initial_state_members: [450]
+    allowed_state_elements: ["H", "O", "C"]
+    max_state_members: 10
+    rule_profile: "bas_default"
+    metadata:
+      description: "Brønsted acid site example"
+      proton_source: true
+
+
+  # ----------------------------------------------------------
+  # 示例 3：金属团簇位
+  # ----------------------------------------------------------
+  # 这个例子演示一个由多个金属原子共同组成的活性中心。
+  - id: "PT_CLUSTER_01"
+    family: "Pt_cluster"
+    core_members: [0, 1, 2]
+    initial_state_members: []
+    allowed_state_elements: ["H", "O", "C", "N"]
+    max_state_members: 16
+    rule_profile: "pt_cluster_default"
+    metadata:
+      description: "Three-atom Pt ensemble example"
+      expected_adsorption_modes: ["top", "bridge", "hollow"]
+
+
+# ============================================================
+# 字段说明汇总
+# ============================================================
+#
+# 必填字段：
+# - id
+# - family 或 type
+# - core_members
+#
+# 可选字段：
+# - initial_state_members
+# - allowed_state_elements
+# - max_state_members
+# - rule_profile
+# - metadata
+#
+# 索引说明：
+# - 这里的索引必须和主配置里的 active_site.index_base 一致
+# - 默认推荐使用 0-based
+#
+# ============================================================
+# 状态构成概念
+# ============================================================
+#
+# 程序会为每个 active site 在每一帧构造几类成员：
+#
+# 1. intrinsic_members
+#    位点固有状态成员。
+#    一般来自：
+#    - initial_state_members 所在连通分量
+#    - 与核心位点直接相关、且被规则保留的部分
+#
+# 2. incorporated_members
+#    已经“并入位点状态主体”的成员。
+#    一般意味着它们与 core 或 intrinsic 网络耦合得更紧。
+#
+# 3. associated_members
+#    与位点相关、但尚未并入主体的成员。
+#    更像是附着 / 关联物种。
+#
+# 4. state_members
+#    上面几类成员的合集。
+#
+# 程序还会输出：
+# - intrinsic_formula / topology
+# - incorporated_formula / topology
+# - associated_formula / topology
+# - state_formula / topology
+# - state_label
+#
+# ============================================================
+# 常见使用建议
+# ============================================================
+#
+# 1. 对单原子酸位 / 金属位：
+#    core_members 通常写一个原子即可
+#
+# 2. 对桥式或团簇位点：
+#    core_members 可以写多个原子
+#
+# 3. 如果位点初始就带 OH / H：
+#    可把这些原子放进 initial_state_members
+#
+# 4. 如果你只关心某几种元素的局部反应：
+#    用 allowed_state_elements 限制一下，结果会更干净
+#
+# 5. 如果状态经常膨胀得太大：
+#    适当减小 max_state_members
+#
+# ============================================================
+# 常见坑
+# ============================================================
+#
+# 1. core_members 必须属于 slab
+#    如果 active_site.strict_core_validation=true，
+#    写错会直接报错
+#
+# 2. initial_state_members 必须是非 slab 原子才有意义
+#
+# 3. 如果 allowed_state_elements 设得太窄，
+#    可能会把真实相关中间体过滤掉
+#
+# 4. 如果 active_site.enabled=false，
+#    这个文件不会参与分析
+#
+# ============================================================
