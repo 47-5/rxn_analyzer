@@ -3,6 +3,8 @@ from .slab import HostDefinition, SlabDefinition
 from .sites import Site, SiteAssignment, SiteDefinition
 from .analyzer import ReactionAnalyzer, AnalyzerConfig
 from .species import (
+    ComponentMapper,
+    EventIdCounter,
     SmilesStrategy,
     SmilesBestEffortStrategy,
     SmilesEdgesRDKitStrategy,
@@ -10,20 +12,20 @@ from .species import (
     SmilesOpenBabel3DStrategy,
     SmilesRDKitTopologyStrategy,
     SmilesComboStrategy,
+    SpeciesFrameSnapshot,
+    SpeciesLabeler,
+    SpeciesPipeline,
+    SpeciesRuntime,
+    TransformEmitter,
 )
 from .postprocess_graph import run_pipeline, load_config
 from .network import ensure_bipartite_graph, add_transform_bipartite
-from .site_model import (
+from .active_site import (
     ActiveSite,
     ActiveSiteDefinition,
     ActiveSiteEvent,
     ActiveSiteStateFrame,
     JointActiveSiteReaction,
-    ReactiveSite,
-    ReactiveSiteDefinition,
-    ReactiveSiteStateFrame,
-    ReactiveSiteEvent,
-    JointReactiveSiteReaction,
 )
 
 GeometricSite = Site
@@ -37,6 +39,13 @@ __all__ = [
     "HostDefinition",
     "ReactionAnalyzer",
     "AnalyzerConfig",
+    "SpeciesRuntime",
+    "SpeciesLabeler",
+    "SpeciesPipeline",
+    "SpeciesFrameSnapshot",
+    "ComponentMapper",
+    "EventIdCounter",
+    "TransformEmitter",
     "SmilesStrategy",
     "SmilesBestEffortStrategy",
     "SmilesEdgesRDKitStrategy",
@@ -54,11 +63,6 @@ __all__ = [
     "GeometricSite",
     "GeometricSiteDefinition",
     "GeometricSiteAssignment",
-    "ReactiveSite",
-    "ReactiveSiteDefinition",
-    "ReactiveSiteStateFrame",
-    "ReactiveSiteEvent",
-    "JointReactiveSiteReaction",
     "ActiveSite",
     "ActiveSiteDefinition",
     "ActiveSiteStateFrame",

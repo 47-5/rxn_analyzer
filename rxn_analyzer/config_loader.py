@@ -11,7 +11,7 @@ from .analyzer import AnalyzerConfig
 from .criteria import Criteria, DistanceHysteresisParams
 from .slab import SlabDefinition
 from .sites import SiteDefinition
-from .site_model import ReactiveSiteDefinition
+from .active_site import ActiveSiteDefinition
 
 
 ConfigInput = str | Path | Mapping[str, Any]
@@ -440,7 +440,7 @@ def _build_site_def(cfg: Mapping[str, Any], base_dir: Path | None) -> SiteDefini
     )
 
 
-def _build_reactive_site_def(cfg: Mapping[str, Any], base_dir: Path | None) -> ReactiveSiteDefinition | None:
+def _build_reactive_site_def(cfg: Mapping[str, Any], base_dir: Path | None) -> ActiveSiteDefinition | None:
     sc = _get_section_alias(cfg, "active_site", "reactive_site")
     enabled = _to_bool(sc.get("enabled", False))
     if not enabled:
@@ -456,7 +456,7 @@ def _build_reactive_site_def(cfg: Mapping[str, Any], base_dir: Path | None) -> R
 
     strict = _to_bool(sc.get("strict_core_validation", True))
     site_path = _resolve_path(str(site_file), base_dir)
-    return ReactiveSiteDefinition.from_yaml(
+    return ActiveSiteDefinition.from_yaml(
         site_path,
         index_base=index_base,
         strict_core_validation=strict,
@@ -467,7 +467,7 @@ def _build_analyzer_config(
     cfg: Mapping[str, Any],
     *,
     site_def: SiteDefinition | None,
-    reactive_site_def: ReactiveSiteDefinition | None,
+    reactive_site_def: ActiveSiteDefinition | None,
     out_prefix: str,
     strict_analyzer_fields: bool = False,
 ) -> AnalyzerConfig:
@@ -483,7 +483,7 @@ def _build_analyzer_config(
     if site_def is not None:
         a["site_definition"] = site_def
     if reactive_site_def is not None:
-        a["reactive_site_definition"] = reactive_site_def
+        a["active_site_definition"] = reactive_site_def
     if "geometric_site_signature_mode" in a and "site_signature_mode" not in a:
         a["site_signature_mode"] = a["geometric_site_signature_mode"]
     if "active_site_record_states" in a and "reactive_site_record_states" not in a:

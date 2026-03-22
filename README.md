@@ -204,6 +204,55 @@ Windows 上也可以：
 py -3 -m rxn_analyzer.runner --config example_config/example_analyzer_clean.yaml
 ```
 
+## 代码结构
+
+当前代码里最值得关注的两个子模块是：
+
+- [`rxn_analyzer/species/`](/D:/code/rxn_analyzer/rxn_analyzer/species)
+  负责普通非 host 物种识别与反应解释
+- [`rxn_analyzer/active_site/`](/D:/code/rxn_analyzer/rxn_analyzer/active_site)
+  负责动态活性位点状态、事件和耦合分析
+
+其中：
+
+- [`rxn_analyzer/species/chem.py`](/D:/code/rxn_analyzer/rxn_analyzer/species/chem.py)
+  单帧 chemistry 工具，例如连通分量、formula、SMILES、ads 签名
+- [`rxn_analyzer/species/model.py`](/D:/code/rxn_analyzer/rxn_analyzer/species/model.py)
+  `SpeciesFrameSnapshot`
+- [`rxn_analyzer/species/pipeline.py`](/D:/code/rxn_analyzer/rxn_analyzer/species/pipeline.py)
+  单帧物种识别
+- [`rxn_analyzer/species/mapping.py`](/D:/code/rxn_analyzer/rxn_analyzer/species/mapping.py)
+  跨帧 component 对齐
+- [`rxn_analyzer/species/emitter.py`](/D:/code/rxn_analyzer/rxn_analyzer/species/emitter.py)
+  transform 事件发射
+- [`rxn_analyzer/species/runtime.py`](/D:/code/rxn_analyzer/rxn_analyzer/species/runtime.py)
+  species 主运行时串联
+
+- [`rxn_analyzer/active_site/model.py`](/D:/code/rxn_analyzer/rxn_analyzer/active_site/model.py)
+  `ActiveSite` 相关核心模型
+- [`rxn_analyzer/active_site/types.py`](/D:/code/rxn_analyzer/rxn_analyzer/active_site/types.py)
+  active-site 运行时中间类型
+- [`rxn_analyzer/active_site/pipeline.py`](/D:/code/rxn_analyzer/rxn_analyzer/active_site/pipeline.py)
+  单帧 active-site 状态识别
+- [`rxn_analyzer/active_site/tracker.py`](/D:/code/rxn_analyzer/rxn_analyzer/active_site/tracker.py)
+  跨帧 active-site 事件生成
+- [`rxn_analyzer/active_site/coupling.py`](/D:/code/rxn_analyzer/rxn_analyzer/active_site/coupling.py)
+  active-site 与普通反应的耦合分析
+- [`rxn_analyzer/active_site/runtime.py`](/D:/code/rxn_analyzer/rxn_analyzer/active_site/runtime.py)
+  active-site 主运行时串联
+
+主调度仍在：
+
+- [`rxn_analyzer/analyzer.py`](/D:/code/rxn_analyzer/rxn_analyzer/analyzer.py)
+- [`rxn_analyzer/runner.py`](/D:/code/rxn_analyzer/rxn_analyzer/runner.py)
+
+如果你要继续开发，推荐的阅读顺序是：
+
+1. [`rxn_analyzer/analyzer.py`](/D:/code/rxn_analyzer/rxn_analyzer/analyzer.py)
+2. [`rxn_analyzer/species/runtime.py`](/D:/code/rxn_analyzer/rxn_analyzer/species/runtime.py)
+3. [`rxn_analyzer/active_site/runtime.py`](/D:/code/rxn_analyzer/rxn_analyzer/active_site/runtime.py)
+4. 再按需要深入 `pipeline / mapping / emitter / tracker / coupling`
+
 ## 自动生成 active_site 定义
 
 如果你在分子筛体系里有很多类似的 BAS/LAS，不想手动一个个写 `active_site`，现在可以先用自动生成工具从首帧结构里提取。

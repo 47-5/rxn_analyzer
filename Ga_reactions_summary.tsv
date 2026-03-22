@@ -1,0 +1,2 @@
+reaction	fwd	rev	total	fwd_frames	rev_frames
+C6H8O|smiles=[H][CH]1[CH]([H])[CH]([C]([H])([H])[H])[O][CH]1[C]([H])([H])[H]<->C6H8O|smiles=[H][CH]1[CH]([H])[CH]([C]([H])([H])[H])[O][CH]1[C]([H])([H])[H]|ads	1	1	2	[1188]	[1197]

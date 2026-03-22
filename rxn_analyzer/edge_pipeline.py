@@ -9,7 +9,7 @@ from .criteria import Criteria
 from .edges import Edge, EdgeEvidence, EdgeType
 from .tracking import EdgeTracker, BondEvent
 from .slab import SlabDefinition
-from .event_emitter import EventIdCounter
+from .species import EventIdCounter
 
 
 def _edge(i: int, j: int, t: EdgeType) -> Edge:

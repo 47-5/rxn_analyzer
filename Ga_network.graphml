@@ -1,0 +1,177 @@
+<?xml version='1.0' encoding='utf-8'?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd"><key id="d43" for="edge" attr.name="display_label" attr.type="string"/>
+<key id="d42" for="edge" attr.name="label" attr.type="string"/>
+<key id="d41" for="edge" attr.name="weight" attr.type="long"/>
+<key id="d40" for="edge" attr.name="stoich" attr.type="long"/>
+<key id="d39" for="edge" attr.name="role" attr.type="string"/>
+<key id="d38" for="node" attr.name="species_ads_n" attr.type="long"/>
+<key id="d37" for="node" attr.name="species_is_ads" attr.type="boolean"/>
+<key id="d36" for="node" attr.name="species_wl" attr.type="string"/>
+<key id="d35" for="node" attr.name="species_smiles" attr.type="string"/>
+<key id="d34" for="node" attr.name="species_formula" attr.type="string"/>
+<key id="d33" for="node" attr.name="species_label" attr.type="string"/>
+<key id="d32" for="node" attr.name="label_short" attr.type="string"/>
+<key id="d31" for="node" attr.name="label_ads_n" attr.type="string"/>
+<key id="d30" for="node" attr.name="label_ads" attr.type="string"/>
+<key id="d29" for="node" attr.name="label_wl" attr.type="string"/>
+<key id="d28" for="node" attr.name="label_smiles" attr.type="string"/>
+<key id="d27" for="node" attr.name="label_formula" attr.type="string"/>
+<key id="d26" for="node" attr.name="nS" attr.type="long"/>
+<key id="d25" for="node" attr.name="nN" attr.type="long"/>
+<key id="d24" for="node" attr.name="nO" attr.type="long"/>
+<key id="d23" for="node" attr.name="nH" attr.type="long"/>
+<key id="d22" for="node" attr.name="nC" attr.type="long"/>
+<key id="d21" for="node" attr.name="ads_n_max" attr.type="long"/>
+<key id="d20" for="node" attr.name="ads_n_total" attr.type="long"/>
+<key id="d19" for="node" attr.name="is_ads" attr.type="boolean"/>
+<key id="d18" for="node" attr.name="is_mixture" attr.type="boolean"/>
+<key id="d17" for="node" attr.name="n_components" attr.type="long"/>
+<key id="d16" for="node" attr.name="species_labels" attr.type="string"/>
+<key id="d15" for="node" attr.name="n_products" attr.type="long"/>
+<key id="d14" for="node" attr.name="n_reactants" attr.type="long"/>
+<key id="d13" for="node" attr.name="weight" attr.type="long"/>
+<key id="d12" for="node" attr.name="reaction_type" attr.type="string"/>
+<key id="d11" for="node" attr.name="reaction_equation" attr.type="string"/>
+<key id="d10" for="node" attr.name="reaction_products" attr.type="string"/>
+<key id="d9" for="node" attr.name="reaction_reactants" attr.type="string"/>
+<key id="d8" for="node" attr.name="type" attr.type="string"/>
+<key id="d7" for="node" attr.name="products" attr.type="string"/>
+<key id="d6" for="node" attr.name="reactants" attr.type="string"/>
+<key id="d5" for="node" attr.name="bipartite" attr.type="string"/>
+<key id="d4" for="node" attr.name="is_reaction" attr.type="boolean"/>
+<key id="d3" for="node" attr.name="node_type" attr.type="string"/>
+<key id="d2" for="node" attr.name="display_label" attr.type="string"/>
+<key id="d1" for="node" attr.name="label" attr.type="string"/>
+<key id="d0" for="node" attr.name="orig_id" attr.type="string"/>
+<graph edgedefault="directed"><node id="r0">
+  <data key="d0">C6H8O|smiles=[H][CH]1[CH]([H])[CH]([C]([H])([H])[H])[O][CH]1[C]([H])([H])[H] -&gt; C6H8O|smiles=[H][CH]1[CH]([H])[CH]([C]([H])([H])[H])[O][CH]1[C]([H])([H])[H]|ads|type=adsorb/desorb/migrate</data>
+  <data key="d1">C6H8O|smiles=[H][CH]1[CH]([H])[CH]([C]([H])([H])[H])[O][CH]1[C]([H])([H])[H]
+-&gt;
+C6H8O|smiles=[H][CH]1[CH]([H])[CH]([C]([H])([H])[H])[O][CH]1[C]([H])([H])[H]|ads</data>
+  <data key="d2">adsorb/desorb/migrate</data>
+  <data key="d3">reaction</data>
+  <data key="d4">True</data>
+  <data key="d5">reaction</data>
+  <data key="d6">C6H8O|smiles=[H][CH]1[CH]([H])[CH]([C]([H])([H])[H])[O][CH]1[C]([H])([H])[H]</data>
+  <data key="d7">C6H8O|smiles=[H][CH]1[CH]([H])[CH]([C]([H])([H])[H])[O][CH]1[C]([H])([H])[H]|ads</data>
+  <data key="d8">adsorb/desorb/migrate</data>
+  <data key="d9">["C6H8O|smiles=[H][CH]1[CH]([H])[CH]([C]([H])([H])[H])[O][CH]1[C]([H])([H])[H]"]</data>
+  <data key="d10">["C6H8O|smiles=[H][CH]1[CH]([H])[CH]([C]([H])([H])[H])[O][CH]1[C]([H])([H])[H]|ads"]</data>
+  <data key="d11">C6H8O|smiles=[H][CH]1[CH]([H])[CH]([C]([H])([H])[H])[O][CH]1[C]([H])([H])[H] -&gt; C6H8O|smiles=[H][CH]1[CH]([H])[CH]([C]([H])([H])[H])[O][CH]1[C]([H])([H])[H]|ads</data>
+  <data key="d12">adsorb/desorb/migrate</data>
+  <data key="d13">1</data>
+  <data key="d14">1</data>
+  <data key="d15">1</data>
+</node>
+<node id="0">
+  <data key="d0">C6H8O|smiles=[H][CH]1[CH]([H])[CH]([C]([H])([H])[H])[O][CH]1[C]([H])([H])[H]</data>
+  <data key="d1">C6H8O|smiles=[H][CH]1[CH]([H])[CH]([C]([H])([H])[H])[O][CH]1[C]([H])([H])[H]</data>
+  <data key="d2">C6H8O</data>
+  <data key="d3">species</data>
+  <data key="d4">False</data>
+  <data key="d5">species</data>
+  <data key="d16">["C6H8O|smiles=[H][CH]1[CH]([H])[CH]([C]([H])([H])[H])[O][CH]1[C]([H])([H])[H]"]</data>
+  <data key="d17">1</data>
+  <data key="d18">False</data>
+  <data key="d19">False</data>
+  <data key="d20">0</data>
+  <data key="d21">0</data>
+  <data key="d22">6</data>
+  <data key="d23">8</data>
+  <data key="d24">1</data>
+  <data key="d25">0</data>
+  <data key="d26">0</data>
+  <data key="d27">C6H8O</data>
+  <data key="d28">[H][CH]1[CH]([H])[CH]([C]([H])([H])[H])[O][CH]1[C]([H])([H])[H]</data>
+  <data key="d29"></data>
+  <data key="d30">non_ads</data>
+  <data key="d31"></data>
+  <data key="d32">C6H8O</data>
+  <data key="d33">C6H8O|smiles=[H][CH]1[CH]([H])[CH]([C]([H])([H])[H])[O][CH]1[C]([H])([H])[H]</data>
+  <data key="d34">C6H8O</data>
+  <data key="d35">[H][CH]1[CH]([H])[CH]([C]([H])([H])[H])[O][CH]1[C]([H])([H])[H]</data>
+  <data key="d36"></data>
+  <data key="d37">False</data>
+  <data key="d38">0</data>
+</node>
+<node id="1">
+  <data key="d0">C6H8O|smiles=[H][CH]1[CH]([H])[CH]([C]([H])([H])[H])[O][CH]1[C]([H])([H])[H]|ads</data>
+  <data key="d1">C6H8O|smiles=[H][CH]1[CH]([H])[CH]([C]([H])([H])[H])[O][CH]1[C]([H])([H])[H]
+|ads</data>
+  <data key="d2">C6H8O|ads</data>
+  <data key="d3">species</data>
+  <data key="d4">False</data>
+  <data key="d5">species</data>
+  <data key="d16">["C6H8O|smiles=[H][CH]1[CH]([H])[CH]([C]([H])([H])[H])[O][CH]1[C]([H])([H])[H]|ads"]</data>
+  <data key="d17">1</data>
+  <data key="d18">False</data>
+  <data key="d19">True</data>
+  <data key="d20">0</data>
+  <data key="d21">0</data>
+  <data key="d22">6</data>
+  <data key="d23">8</data>
+  <data key="d24">1</data>
+  <data key="d25">0</data>
+  <data key="d26">0</data>
+  <data key="d27">C6H8O</data>
+  <data key="d28">[H][CH]1[CH]([H])[CH]([C]([H])([H])[H])[O][CH]1[C]([H])([H])[H]</data>
+  <data key="d29"></data>
+  <data key="d30">ads</data>
+  <data key="d31">0</data>
+  <data key="d32">C6H8O|ads</data>
+  <data key="d33">C6H8O|smiles=[H][CH]1[CH]([H])[CH]([C]([H])([H])[H])[O][CH]1[C]([H])([H])[H]|ads</data>
+  <data key="d34">C6H8O</data>
+  <data key="d35">[H][CH]1[CH]([H])[CH]([C]([H])([H])[H])[O][CH]1[C]([H])([H])[H]</data>
+  <data key="d36"></data>
+  <data key="d37">True</data>
+  <data key="d38">0</data>
+</node>
+<node id="r1">
+  <data key="d0">C6H8O|smiles=[H][CH]1[CH]([H])[CH]([C]([H])([H])[H])[O][CH]1[C]([H])([H])[H]|ads -&gt; C6H8O|smiles=[H][CH]1[CH]([H])[CH]([C]([H])([H])[H])[O][CH]1[C]([H])([H])[H]|type=adsorb/desorb/migrate</data>
+  <data key="d1">C6H8O|smiles=[H][CH]1[CH]([H])[CH]([C]([H])([H])[H])[O][CH]1[C]([H])([H])[H]|ads
+-&gt;
+C6H8O|smiles=[H][CH]1[CH]([H])[CH]([C]([H])([H])[H])[O][CH]1[C]([H])([H])[H]</data>
+  <data key="d2">adsorb/desorb/migrate</data>
+  <data key="d3">reaction</data>
+  <data key="d4">True</data>
+  <data key="d5">reaction</data>
+  <data key="d6">C6H8O|smiles=[H][CH]1[CH]([H])[CH]([C]([H])([H])[H])[O][CH]1[C]([H])([H])[H]|ads</data>
+  <data key="d7">C6H8O|smiles=[H][CH]1[CH]([H])[CH]([C]([H])([H])[H])[O][CH]1[C]([H])([H])[H]</data>
+  <data key="d8">adsorb/desorb/migrate</data>
+  <data key="d9">["C6H8O|smiles=[H][CH]1[CH]([H])[CH]([C]([H])([H])[H])[O][CH]1[C]([H])([H])[H]|ads"]</data>
+  <data key="d10">["C6H8O|smiles=[H][CH]1[CH]([H])[CH]([C]([H])([H])[H])[O][CH]1[C]([H])([H])[H]"]</data>
+  <data key="d11">C6H8O|smiles=[H][CH]1[CH]([H])[CH]([C]([H])([H])[H])[O][CH]1[C]([H])([H])[H]|ads -&gt; C6H8O|smiles=[H][CH]1[CH]([H])[CH]([C]([H])([H])[H])[O][CH]1[C]([H])([H])[H]</data>
+  <data key="d12">adsorb/desorb/migrate</data>
+  <data key="d13">1</data>
+  <data key="d14">1</data>
+  <data key="d15">1</data>
+</node>
+<edge source="r0" target="1">
+  <data key="d39">product</data>
+  <data key="d40">1</data>
+  <data key="d41">1</data>
+  <data key="d42">product x1 (n=1)</data>
+  <data key="d43">product</data>
+</edge>
+<edge source="0" target="r0">
+  <data key="d39">reactant</data>
+  <data key="d40">1</data>
+  <data key="d41">1</data>
+  <data key="d42">reactant x1 (n=1)</data>
+  <data key="d43">reactant</data>
+</edge>
+<edge source="1" target="r1">
+  <data key="d39">reactant</data>
+  <data key="d40">1</data>
+  <data key="d41">1</data>
+  <data key="d42">reactant x1 (n=1)</data>
+  <data key="d43">reactant</data>
+</edge>
+<edge source="r1" target="0">
+  <data key="d39">product</data>
+  <data key="d40">1</data>
+  <data key="d41">1</data>
+  <data key="d42">product x1 (n=1)</data>
+  <data key="d43">product</data>
+</edge>
+</graph></graphml>

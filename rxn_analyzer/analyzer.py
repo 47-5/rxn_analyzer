@@ -6,29 +6,31 @@ from ase import Atoms
 from .criteria import Criteria
 from .tracking import EdgeTracker
 from .edge_pipeline import EdgePipeline
-from .species_pipeline import SpeciesLabeler, SpeciesPipeline
-from .component_mapper import ComponentMapper
-from .event_emitter import EventIdCounter, TransformEmitter
+from .species import (
+    ComponentMapper,
+    EventIdCounter,
+    SmilesBestEffortStrategy,
+    SmilesComboStrategy,
+    SmilesEdgesRDKitStrategy,
+    SmilesOpenBabel3DStrategy,
+    SmilesRDKit3DStrategy,
+    SmilesRDKitTopologyStrategy,
+    SmilesStrategy,
+    SpeciesLabeler,
+    SpeciesPipeline,
+    SpeciesRuntime,
+    TransformEmitter,
+)
 from .frame_species_logger import FrameSpeciesLogger
 from .output_writer import OutputWriter
 from .baseline_gate import BaselineGate
 from .sites import SiteDefinition
-from .site_model import ReactiveSiteDefinition, ReactiveSiteStateFrame
-from .site_pipeline import ReactiveSiteFrameBatch, ReactiveSitePipeline
-from .site_tracker import ReactiveSiteTracker
-from .site_output import ReactiveSiteOutputWriter
-
-from .species import (
-    SmilesStrategy,
-    SmilesBestEffortStrategy,
-    SmilesEdgesRDKitStrategy,
-    SmilesRDKit3DStrategy,
-    SmilesOpenBabel3DStrategy,
-    SmilesRDKitTopologyStrategy,
-    SmilesComboStrategy,
+from .active_site import (
+    ActiveSiteDefinition,
+    ActiveSiteRuntime,
 )
+
 from .network import ensure_bipartite_graph
-from .events import TransformEvent
 
 
 @dataclass
@@ -42,7 +44,7 @@ class AnalyzerConfig:
     ads_signature_mode: str = "detailed"
     site_signature_mode: str = "none"
     site_definition: SiteDefinition | None = None
-    reactive_site_definition: ReactiveSiteDefinition | None = None
+    active_site_definition: ActiveSiteDefinition | None = None
 
     smiles_recompute_mode: str = "always"
     smiles_mode: str = "combo"
@@ -119,6 +121,7 @@ class ReactionAnalyzer:
         )
 
         self.emitter = TransformEmitter(self.graph, self.id_counter)
+        self.species_runtime = SpeciesRuntime(mapper=self.mapper, emitter=self.emitter)
 
         self.baseline = BaselineGate(persist=self.config.baseline_persist)
 
@@ -131,142 +134,14 @@ class ReactionAnalyzer:
         )
 
         self.output_writer = OutputWriter()
-        self.reactive_site_pipeline = (
-            ReactiveSitePipeline(self.config.reactive_site_definition)
-            if self.config.reactive_site_definition is not None
-            else None
+        self.active_site_runtime = ActiveSiteRuntime(
+            definition=self.config.active_site_definition,
+            out_prefix=self.out_prefix,
+            record_states=bool(self.config.reactive_site_record_states),
+            record_events=bool(self.config.reactive_site_record_events),
+            record_joint_reactions=bool(self.config.reactive_site_record_joint_reactions),
+            streaming=bool(self.config.active_site_streaming),
         )
-        self.reactive_site_tracker = ReactiveSiteTracker()
-        self.reactive_site_output_writer = ReactiveSiteOutputWriter()
-        self.reactive_site_states: list[ReactiveSiteStateFrame] = []
-
-    def _analyze_reactive_sites(self, frame: int, atoms: Atoms, edge, sp) -> ReactiveSiteFrameBatch | None:
-        if self.reactive_site_pipeline is None:
-            return None
-        return self.reactive_site_pipeline.analyze(
-            frame=frame,
-            atoms=atoms,
-            slab_mask=edge.slab_mask,
-            cov_edges=edge.cov_edges,
-            ads_edges=edge.ads_edges,
-            components=sp.comps,
-            labels=sp.labels,
-        )
-
-    @staticmethod
-    def _build_reactive_site_memberships(
-        comps: list[list[int]],
-        states: list[ReactiveSiteStateFrame],
-    ) -> list[list[dict]]:
-        memberships: list[list[dict]] = []
-        for comp in comps:
-            comp_set = set(comp)
-            comp_items: list[dict] = []
-            for state in states:
-                overlap_rows: list[dict] = []
-                for role_name, atoms in (
-                    ("intrinsic", set(state.intrinsic_members)),
-                    ("incorporated", set(state.incorporated_members)),
-                    ("associated", set(state.associated_members)),
-                ):
-                    overlap = sorted(comp_set & atoms)
-                    if overlap:
-                        overlap_rows.append({"role": role_name, "overlap_atoms": overlap})
-                if overlap_rows:
-                    comp_items.append(
-                        {
-                            "site_id": state.site_id,
-                            "site_family": state.site_family,
-                            "memberships": overlap_rows,
-                        }
-                    )
-            memberships.append(comp_items)
-        return memberships
-
-    @staticmethod
-    def _summarize_reactive_site_memberships(
-        memberships: list[list[dict]],
-    ) -> tuple[list[str], list[list[str]], list[list[str]], list[bool], list[bool]]:
-        role_priority = {"intrinsic": 0, "incorporated": 1, "associated": 2}
-        summary_roles: list[str] = []
-        summary_site_ids: list[list[str]] = []
-        summary_labels: list[list[str]] = []
-        is_site_owned: list[bool] = []
-        is_site_associated: list[bool] = []
-
-        for comp_items in memberships:
-            roles_found: set[str] = set()
-            site_ids: list[str] = []
-            labels: list[str] = []
-
-            for item in comp_items:
-                site_id = str(item.get("site_id", ""))
-                site_ids.append(site_id)
-                memberships_list = item.get("memberships", [])
-                roles = sorted(
-                    {
-                        str(entry.get("role", ""))
-                        for entry in memberships_list
-                        if str(entry.get("role", ""))
-                    },
-                    key=lambda x: (role_priority.get(x, 99), x),
-                )
-                roles_found.update(roles)
-                if site_id and roles:
-                    labels.append(f"{site_id}:{'+'.join(roles)}")
-                elif site_id:
-                    labels.append(site_id)
-
-            normalized_site_ids = sorted({x for x in site_ids if x})
-            normalized_labels = sorted(set(labels))
-
-            owned = any(r in {"intrinsic", "incorporated"} for r in roles_found)
-            associated = "associated" in roles_found
-
-            if not roles_found:
-                role_text = "none"
-            elif len(roles_found) == 1:
-                role_text = next(iter(roles_found))
-            else:
-                role_text = "mixed"
-
-            summary_roles.append(role_text)
-            summary_site_ids.append(normalized_site_ids)
-            summary_labels.append(normalized_labels)
-            is_site_owned.append(owned)
-            is_site_associated.append(associated)
-
-        return summary_roles, summary_site_ids, summary_labels, is_site_owned, is_site_associated
-
-    def _process_reactive_sites(self, frame: int, batch: ReactiveSiteFrameBatch | None, edge, *, emit_events: bool) -> None:
-        if batch is None:
-            return
-
-        if self.config.reactive_site_record_states:
-            self.reactive_site_states.extend(batch.states)
-            if self.config.active_site_streaming:
-                self.reactive_site_output_writer.record_state_frames(self.out_prefix, batch.states)
-        prev_event_count = len(self.reactive_site_tracker.events)
-        prev_joint_count = len(self.reactive_site_tracker.joint_reactions)
-        next_id = self.reactive_site_tracker.update(
-            frame=frame,
-            states=batch.states,
-            bond_events=edge.bond_events,
-            next_event_id=self.id_counter.value,
-            emit_events=emit_events,
-        )
-        if self.config.active_site_streaming:
-            if self.config.reactive_site_record_events:
-                self.reactive_site_output_writer.record_events(
-                    self.out_prefix,
-                    self.reactive_site_tracker.events[prev_event_count:],
-                )
-            if self.config.reactive_site_record_joint_reactions:
-                self.reactive_site_output_writer.record_joint_reactions(
-                    self.out_prefix,
-                    self.reactive_site_tracker.joint_reactions[prev_joint_count:],
-                )
-        self.id_counter.advance_to(next_id)
 
     def _build_smiles_strategy(self) -> SmilesStrategy:
         if self.config.smiles_strategy_impl is not None:
@@ -334,108 +209,101 @@ class ReactionAnalyzer:
         edge = self.edge_pipeline.step(frame, atoms, self.id_counter)
         self.bond_events.extend(edge.bond_events)
 
-        sp = self.species_pipeline.analyze(
+        species_snapshot = self.species_pipeline.analyze(
             atoms,
             edge.cov_edges,
             edge.ads_edges,
             edge.slab_mask,
             edge.slab_edges,
         )
-        reactive_batch = self._analyze_reactive_sites(frame, atoms, edge, sp)
+        active_batch = self.active_site_runtime.analyze_frame(frame, atoms, edge, species_snapshot)
 
-        ads_pairs = [sp.comp_ads_pairs.get(frozenset(comp), []) for comp in sp.comps]
-        site_assignments = [sp.comp_site_assignments.get(frozenset(comp)) for comp in sp.comps]
-        reactive_site_memberships = self._build_reactive_site_memberships(
-            sp.comps,
-            reactive_batch.states if reactive_batch is not None else [],
-        )
-        (
-            reactive_site_roles,
-            reactive_site_ids,
-            reactive_site_summaries,
-            is_site_owned,
-            is_site_associated,
-        ) = self._summarize_reactive_site_memberships(reactive_site_memberships)
+        ads_pairs = [
+            species_snapshot.component_ads_pairs.get(frozenset(component), [])
+            for component in species_snapshot.components
+        ]
+        geometric_site_assignments = [
+            species_snapshot.component_geometric_site_assignments.get(frozenset(component))
+            for component in species_snapshot.components
+        ]
+        active_ctx = self.active_site_runtime.build_frame_context(species_snapshot.components, active_batch)
         self.frame_logger.record_frame(
             frame,
-            sp.labels,
-            sp.multiset,
-            sp.comps,
+            species_snapshot.labels,
+            species_snapshot.multiset,
+            components=species_snapshot.components,
             ads_pairs=ads_pairs,
-            site_assignments=site_assignments,
-            reactive_site_roles=reactive_site_roles,
-            reactive_site_ids=reactive_site_ids,
-            reactive_site_summaries=reactive_site_summaries,
-            is_site_owned=is_site_owned,
-            is_site_associated=is_site_associated,
-            reactive_site_memberships=reactive_site_memberships,
+            geometric_site_assignments=geometric_site_assignments,
+            active_site_roles=active_ctx.roles,
+            active_site_ids=active_ctx.site_ids,
+            active_site_summaries=active_ctx.summaries,
+            is_active_site_owned=active_ctx.is_site_owned,
+            is_active_site_associated=active_ctx.is_site_associated,
+            active_site_memberships=active_ctx.memberships,
         )
 
-        mode, delta = self.baseline.step(frame, sp.multiset)
+        mode, delta = self.baseline.step(frame, species_snapshot.multiset)
         emit_reactive_init_events = (not self.config.drop_init_events) and self.config.record_init_events
 
         if mode == "confirmed_now":
-            self._process_reactive_sites(
+            next_id = self.active_site_runtime.consume_frame(
                 frame,
-                reactive_batch,
+                active_batch,
                 edge,
+                next_event_id=self.id_counter.value,
                 emit_events=emit_reactive_init_events,
             )
-            self.mapper.set_prev(sp.comp_labels)
+            self.id_counter.advance_to(next_id)
+            self.species_runtime.set_previous_snapshot(species_snapshot)
             return
 
         if mode == "warmup":
-            self._process_reactive_sites(
+            next_id = self.active_site_runtime.consume_frame(
                 frame,
-                reactive_batch,
+                active_batch,
                 edge,
+                next_event_id=self.id_counter.value,
                 emit_events=emit_reactive_init_events,
             )
+            self.id_counter.advance_to(next_id)
             if (delta or edge.bond_events) and (not self.config.drop_init_events) and self.config.record_init_events:
-                self.emitter.emit_from_delta(
+                self.species_runtime.emit_init_assignment(
                     frame=frame,
                     delta=delta,
                     bond_events=edge.bond_events,
-                    ttype_override="init_assignment",
                     add_to_graph=False,
                 )
             return
 
         if (delta or edge.bond_events):
-            plans = self.mapper.split(sp.comp_labels, edge.bond_events)
-            if plans:
-                self.emitter.emit_from_plans(frame, plans, edge.bond_events, add_to_graph=True)
-            else:
-                self.emitter.emit_from_delta(
-                    frame=frame,
-                    delta=delta,
-                    bond_events=edge.bond_events,
-                    ttype_override=None,
-                    add_to_graph=True,
-                )
+            self.species_runtime.emit_frame_events(
+                frame=frame,
+                snapshot=species_snapshot,
+                delta=delta,
+                bond_events=edge.bond_events,
+                add_to_graph=True,
+            )
 
-        self._process_reactive_sites(frame, reactive_batch, edge, emit_events=True)
-        self.mapper.set_prev(sp.comp_labels)
+        next_id = self.active_site_runtime.consume_frame(
+            frame,
+            active_batch,
+            edge,
+            next_event_id=self.id_counter.value,
+            emit_events=True,
+        )
+        self.id_counter.advance_to(next_id)
+        self.species_runtime.set_previous_snapshot(species_snapshot)
 
     def write_outputs(self, out_prefix: str):
         self.output_writer.write_all(
             out_prefix=out_prefix,
-            transform_events=self.emitter.transform_events,
+            transform_events=self.species_runtime.transform_events,
             bond_events=self.bond_events,
             graph=self.graph,
             frame_species_logger=self.frame_logger,
             reaction_summary_include_frames=bool(self.config.reaction_summary_include_frames),
         )
-        if self.reactive_site_pipeline is not None:
-            self.reactive_site_output_writer.write_all(
-                out_prefix=out_prefix,
-                transform_events=self.emitter.transform_events,
-                state_frames=self.reactive_site_states if self.config.reactive_site_record_states else [],
-                events=self.reactive_site_tracker.events if self.config.reactive_site_record_events else [],
-                joint_reactions=(
-                    self.reactive_site_tracker.joint_reactions
-                    if self.config.reactive_site_record_joint_reactions
-                    else []
-                ),
-                streaming=bool(self.config.active_site_streaming),
-            )
+        self.active_site_runtime.write_outputs(
+            out_prefix=out_prefix,
+            transform_events=self.species_runtime.transform_events,
+        )
