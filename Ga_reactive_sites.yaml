@@ -1,8 +1,0 @@
-sites:
-  - id: "LAS_Ga_01"
-    family: "LAS_Ga"
-    core_members: [576]
-    initial_state_members: []
-    allowed_state_elements: ["H", "O", "C"]
-    max_state_members: 16
-    rule_profile: "ga_las_default"

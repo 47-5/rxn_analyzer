@@ -6,7 +6,11 @@ import numpy as np
 from ase import Atoms
 
 from .model import ActiveSiteDefinition, ActiveSiteStateFrame
-from .rules import formula_from_atoms, topology_from_state_components
+from .rules import (
+    classify_active_site_state,
+    formula_from_atoms,
+    topology_from_state_components,
+)
 from .types import (
     ActiveSiteFrameBatch,
     AssociatedComponentInfo,
@@ -311,6 +315,7 @@ class ActiveSitePipeline:
         component_keys: list[tuple[int, ...]],
         associated_species_labels: list[str],
         cov_adj: dict[int, set[int]],
+        core_edge_map: dict[int, set[int]],
     ) -> ActiveSiteStateFrame:
         state_members = intrinsic_members | incorporated_members | associated_members
         state_member_list = sorted(state_members)
@@ -344,12 +349,19 @@ class ActiveSitePipeline:
             core_contacts=direct_contacts,
         )
 
-        base_label = state_topology if state_topology not in {"", "bare"} else state_formula
-        associated_label = associated_topology if associated_topology not in {"", "bare"} else associated_formula
-        if associated_label not in {"", "bare"}:
-            state_label = f"{base_label if base_label not in {'', 'bare'} else 'bare'} + assoc({associated_label})"
-        else:
-            state_label = base_label if base_label not in {"", "bare"} else "bare"
+        state_label, semantic_descriptors = classify_active_site_state(
+            atoms=atoms,
+            site_family=site.site_family,
+            core_members=sorted(valid_core),
+            intrinsic_members=intrinsic_member_list,
+            incorporated_members=incorporated_member_list,
+            associated_members=associated_member_list,
+            associated_topology=associated_topology,
+            state_formula=state_formula,
+            state_topology=state_topology,
+            cov_adj=cov_adj,
+            core_edge_map=core_edge_map,
+        )
 
         descriptors: dict[str, object] = {
             "n_core_members": len(valid_core),
@@ -368,6 +380,7 @@ class ActiveSitePipeline:
             "state_formula": state_formula,
             "state_topology": state_topology,
         }
+        descriptors.update(semantic_descriptors)
 
         return ActiveSiteStateFrame(
             frame=frame,
@@ -458,6 +471,7 @@ class ActiveSitePipeline:
                     component_keys=associated_info.component_keys,
                     associated_species_labels=associated_info.species_labels,
                     cov_adj=cov_adj,
+                    core_edge_map=core_edge_map,
                 )
             )
 
