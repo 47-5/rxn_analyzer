@@ -463,14 +463,22 @@ Key `story` options:
 - `targets`
   Target nodes for path extraction.
 - `path_mode`
-  Current supported value:
+  Current supported values:
   - `shortest`
+  - `chemical_shortest`
+    Use weighted shortest paths that penalize hub-like intermediate species.
 - `direction`
   One of:
   - `directed`
   - `undirected`
 - `max_paths`
   Maximum number of shortest paths retained in the story subgraph.
+- `hub_penalty_strength`
+  Penalty strength used by `chemical_shortest` to downweight highly connected intermediate species.
+- `excluded_species_formulas`
+  Explicitly remove matching species formulas from the path search, except when they are sources or targets.
+- `excluded_species_labels`
+  Explicitly remove matching species labels from the path search, except when they are sources or targets.
 - `min_edge_weight`
   Remove weak edges before path extraction.
 - `collapse_reversible`

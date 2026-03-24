@@ -19,9 +19,13 @@ story:
   targets:
     - "C6H8O|smiles=[H][CH]1[CH]([H])[CH]([C]([H])([H])[H])[O][CH]1[C]([H])([H])[H]|ads(n=1,coord=[1],slab=['Ga'])"
 
-  # Current supported mode:
+  # Current supported modes:
   # - shortest
-  path_mode: "shortest"
+  # - chemical_shortest
+  #
+  # `chemical_shortest` penalizes hub-like intermediate species so that common
+  # shuttles such as H are less likely to dominate the extracted path.
+  path_mode: "chemical_shortest"
 
   # Graph traversal mode:
   # - directed
@@ -30,6 +34,15 @@ story:
 
   # Keep at most this many shortest paths in the extracted story subgraph.
   max_paths: 10
+
+  # When using chemical_shortest, larger values penalize highly connected
+  # intermediate species more strongly.
+  hub_penalty_strength: 2.0
+
+  # Optional explicit exclusions for common intermediate species.
+  # Sources and targets are never removed even if they match these filters.
+  excluded_species_formulas: ["H", "H2"]
+  excluded_species_labels: []
 
   # Remove edges with weight < min_edge_weight before path extraction.
   min_edge_weight: 1
