@@ -8,15 +8,7 @@ from typing import Any
 from ase import Atoms
 from ase.io import read
 
-from rxn_analyzer.config_loader import (
-    RunOverrides,
-    _build_criteria,
-    _build_slab_def,
-    _get_section,
-    _resolve_path,
-    apply_overrides,
-    load_raw_config,
-)
+from rxn_analyzer.config_loader import RunOverrides, build_prepared_config, load_raw_config
 from rxn_analyzer.criteria import Criteria
 from rxn_analyzer.edge_pipeline import build_inst_state_strict_hysteresis
 from rxn_analyzer.edges import EdgeType
@@ -50,6 +42,13 @@ class GeneratedActiveSite:
 
 def _load_structure(path: str, frame_index: int) -> Atoms:
     return read(path, index=int(frame_index))
+
+
+def _resolve_input_path(raw: str, base_dir: Path | None) -> str:
+    path = Path(raw).expanduser()
+    if path.is_absolute() or base_dir is None:
+        return str(path)
+    return str((base_dir / path).resolve())
 
 
 def _build_edges(
@@ -216,21 +215,18 @@ def build_active_sites(
     start_index: int,
 ) -> str:
     cfg, inferred_base = load_raw_config(config_path)
-    merged = apply_overrides(cfg, RunOverrides(traj=traj_override))
-    criteria = _build_criteria(merged)
-    host_def = _build_slab_def(merged)
+    prepared = build_prepared_config(
+        cfg,
+        overrides=RunOverrides(traj=traj_override),
+        base_dir=inferred_base,
+    )
+    criteria = prepared.criteria
+    host_def = prepared.slab_def
 
     if structure_path:
-        structure_source = _resolve_path(structure_path, inferred_base)
+        structure_source = _resolve_input_path(structure_path, inferred_base)
     else:
-        run_cfg = _get_section(merged, "run")
-        traj_raw = str(run_cfg.get("traj", "")).strip()
-        if not traj_raw:
-            raise ValueError(
-                "Missing STRUCTURE_PATH and run.traj in config. "
-                "Please provide a first-frame structure file or configure run.traj."
-            )
-        structure_source = _resolve_path(traj_raw, inferred_base)
+        structure_source = prepared.traj
 
     atoms = _load_structure(structure_source, frame_index)
     host_mask = host_def.mask(atoms)
