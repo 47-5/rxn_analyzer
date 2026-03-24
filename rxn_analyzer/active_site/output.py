@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import csv
 import json
+from collections import Counter, defaultdict
 from typing import IO
 
 import networkx as nx
 
 from ..events import TransformEvent
+from ..graph.attrs import parse_species_label
 from .coupling import build_site_reaction_couplings
 from .model import ActiveSiteEvent, ActiveSiteStateFrame, JointActiveSiteReaction
 
@@ -90,6 +92,18 @@ Files
   Site-centered reactions using associated species as the reaction context.
 - <out_prefix>_site_reaction_coupling.csv
   Unified table linking non-host transform events with active-site state changes.
+- <out_prefix>_active_site_state_counts.csv
+  Summary table counting how long each active-site state appears.
+- <out_prefix>_active_site_family_state_counts.csv
+  Summary table counting how long each active-site family appears in each state.
+- <out_prefix>_active_site_transitions.csv
+  Summary table counting state-to-state transitions for each active site.
+- <out_prefix>_active_site_family_transitions.csv
+  Summary table counting state-to-state transitions aggregated by active-site family.
+- <out_prefix>_reaction_by_active_site_state.csv
+  Summary table grouping linked non-host reactions by active-site state context.
+- <out_prefix>_reaction_by_active_site_family_state.csv
+  Summary table grouping linked non-host reactions by active-site family/state context.
 - <out_prefix>_network_site_aware.graphml
   Graph containing species, reaction, and site_state nodes in one site-aware network.
 
@@ -215,17 +229,489 @@ site_reaction_coupling.csv columns
 - evidence_bonds
   Supporting bond-event evidence collected from linked transforms or site events.
 
+active_site_state_counts.csv columns
+- site_id
+  Active-site identifier.
+- site_family
+  Active-site family/type.
+- state_label
+  Full state label observed in site_states.csv.
+- n_frames
+  Number of frames where this exact state_label appears.
+- fraction_frames
+  Fraction of this site's recorded frames spent in this state.
+- first_frame
+  First frame where this state appears.
+- last_frame
+  Last frame where this state appears.
+
+active_site_family_state_counts.csv columns
+- site_family
+  Active-site family/type.
+- state_label
+  Full state label observed in site_states.csv.
+- n_frames
+  Number of frame/site observations in this family-level state bucket.
+- fraction_frames
+  Fraction of all recorded frames for this family spent in this state.
+- n_unique_sites
+  Number of distinct site ids contributing to this family/state bucket.
+- first_frame
+  First frame where this family/state bucket appears.
+- last_frame
+  Last frame where this family/state bucket appears.
+
+active_site_transitions.csv columns
+- site_id
+  Active-site identifier.
+- site_family
+  Active-site family/type.
+- state_before
+  Previous state label.
+- state_after
+  New state label.
+- n_events
+  Number of active-site transition events with this state change.
+- first_frame
+  First frame where this transition is recorded.
+- last_frame
+  Last frame where this transition is recorded.
+
+active_site_family_transitions.csv columns
+- site_family
+  Active-site family/type.
+- state_before
+  Previous state label.
+- state_after
+  New state label.
+- n_events
+  Number of transition events aggregated across all sites in this family.
+- n_unique_sites
+  Number of distinct site ids contributing to this transition bucket.
+- first_frame
+  First frame where this transition is recorded.
+- last_frame
+  Last frame where this transition is recorded.
+
+reaction_by_active_site_state.csv columns
+- site_id
+  Active-site identifier.
+- site_family
+  Active-site family/type.
+- site_state_before
+  Active-site state before the linked transform(s).
+- site_state_after
+  Active-site state after the linked transform(s).
+- coupling_type
+  Whether the linked chemistry happened on a site without site change, with site change, or as a site-only change.
+- reaction_signature
+  Short human-readable reaction string built from grouped reactants and products.
+- transform_types
+  Joined transform-event types linked to this row group.
+- transform_reactants
+  Joined reactant labels linked to this row group.
+- transform_products
+  Joined product labels linked to this row group.
+- n_rows
+  Number of coupling rows contributing to this grouped summary.
+- n_unique_frames
+  Number of distinct frames contributing to this grouped summary.
+- n_unique_transform_events
+  Number of unique transform events in this grouped summary.
+- strongest_link_strength
+  Strongest link confidence seen in this group.
+
+reaction_by_active_site_family_state.csv columns
+- site_family
+  Active-site family/type.
+- site_state_before
+  Active-site state before the linked transform(s).
+- site_state_after
+  Active-site state after the linked transform(s).
+- coupling_type
+  Whether the linked chemistry happened on a site without site change, with site change, or as a site-only change.
+- reaction_signature
+  Short human-readable reaction string built from grouped reactants and products.
+- transform_types
+  Joined transform-event types linked to this family-level row group.
+- transform_reactants
+  Joined reactant labels linked to this family-level row group.
+- transform_products
+  Joined product labels linked to this family-level row group.
+- n_rows
+  Number of coupling rows contributing to this grouped summary.
+- n_unique_frames
+  Number of distinct frames contributing to this grouped summary.
+- n_unique_sites
+  Number of distinct site ids contributing to this grouped summary.
+- n_unique_transform_events
+  Number of unique transform events in this grouped summary.
+- strongest_link_strength
+  Strongest link confidence seen in this group.
+
 Reading tips
 - core_members answer: which site is this?
 - intrinsic_members + incorporated_members answer: what is the current site state?
 - associated_members and associated_species_labels answer: what is still externally associated with the site?
 - site_events.csv is the best file for site evolution.
 - joint_site_reactions.csv is the best file for reaction-context interpretation.
+- active_site_state_counts.csv is the best file for asking which site states dominate the trajectory.
+- active_site_family_state_counts.csv is the best file for asking which state dominates a whole site family.
+- active_site_transitions.csv is the best file for asking which site-state changes are most common.
+- active_site_family_transitions.csv is the best file for asking which family-level state changes are most common.
+- reaction_by_active_site_state.csv is the best file for asking which reactions tend to happen on which site states.
+- reaction_by_active_site_family_state.csv is the best file for asking which reactions tend to happen on which site families/states.
 - network_site_aware.graphml is the best graph view for seeing whether reactions happen on a site and whether the site state changes.
 - In Gephi, try node labels from display_label, and inspect transform_equation, site_state_transition, coupling_type, and link_strength as custom attributes.
 """
         with open(path, "w", encoding="utf-8") as f:
             f.write(text)
+
+    def _write_state_counts_summary(self, out_prefix: str, state_frames: list[ActiveSiteStateFrame]) -> None:
+        path = f"{out_prefix}_active_site_state_counts.csv"
+        print(f"[write] {path}")
+        grouped: dict[tuple[str, str, str], list[int]] = defaultdict(list)
+        total_by_site: Counter[tuple[str, str]] = Counter()
+        for row in state_frames:
+            key = (row.site_id, row.site_family, row.state_label)
+            grouped[key].append(int(row.frame))
+            total_by_site[(row.site_id, row.site_family)] += 1
+
+        with open(path, "w", newline="", encoding="utf-8") as f:
+            w = csv.DictWriter(
+                f,
+                fieldnames=[
+                    "site_id",
+                    "site_family",
+                    "state_label",
+                    "n_frames",
+                    "fraction_frames",
+                    "first_frame",
+                    "last_frame",
+                ],
+            )
+            w.writeheader()
+            for (site_id, site_family, state_label), frames in sorted(grouped.items()):
+                total = total_by_site[(site_id, site_family)]
+                w.writerow(
+                    {
+                        "site_id": site_id,
+                        "site_family": site_family,
+                        "state_label": state_label,
+                        "n_frames": len(frames),
+                        "fraction_frames": f"{(len(frames) / total) if total else 0.0:.6f}",
+                        "first_frame": min(frames),
+                        "last_frame": max(frames),
+                    }
+                )
+
+    def _write_family_state_counts_summary(self, out_prefix: str, state_frames: list[ActiveSiteStateFrame]) -> None:
+        path = f"{out_prefix}_active_site_family_state_counts.csv"
+        print(f"[write] {path}")
+        grouped: dict[tuple[str, str], dict[str, object]] = defaultdict(
+            lambda: {"frames": [], "sites": set()}
+        )
+        total_by_family: Counter[str] = Counter()
+        for row in state_frames:
+            key = (row.site_family, row.state_label)
+            grouped[key]["frames"].append(int(row.frame))
+            grouped[key]["sites"].add(row.site_id)
+            total_by_family[row.site_family] += 1
+
+        with open(path, "w", newline="", encoding="utf-8") as f:
+            w = csv.DictWriter(
+                f,
+                fieldnames=[
+                    "site_family",
+                    "state_label",
+                    "n_frames",
+                    "fraction_frames",
+                    "n_unique_sites",
+                    "first_frame",
+                    "last_frame",
+                ],
+            )
+            w.writeheader()
+            for (site_family, state_label), bucket in sorted(grouped.items()):
+                frames = bucket["frames"]
+                total = total_by_family[site_family]
+                w.writerow(
+                    {
+                        "site_family": site_family,
+                        "state_label": state_label,
+                        "n_frames": len(frames),
+                        "fraction_frames": f"{(len(frames) / total) if total else 0.0:.6f}",
+                        "n_unique_sites": len(bucket["sites"]),
+                        "first_frame": min(frames),
+                        "last_frame": max(frames),
+                    }
+                )
+
+    def _write_transition_summary(
+        self,
+        out_prefix: str,
+        events: list[ActiveSiteEvent],
+        state_frames: list[ActiveSiteStateFrame],
+    ) -> None:
+        path = f"{out_prefix}_active_site_transitions.csv"
+        print(f"[write] {path}")
+        grouped: dict[tuple[str, str, str, str], list[int]] = defaultdict(list)
+        family_by_site: dict[str, str] = {}
+        for row in state_frames:
+            family_by_site.setdefault(row.site_id, row.site_family)
+        for row in events:
+            grouped[(row.site_id, family_by_site.get(row.site_id, ""), row.old_state, row.new_state)].append(
+                int(row.frame)
+            )
+
+        with open(path, "w", newline="", encoding="utf-8") as f:
+            w = csv.DictWriter(
+                f,
+                fieldnames=[
+                    "site_id",
+                    "site_family",
+                    "state_before",
+                    "state_after",
+                    "n_events",
+                    "first_frame",
+                    "last_frame",
+                ],
+            )
+            w.writeheader()
+            for (site_id, site_family, state_before, state_after), frames in sorted(grouped.items()):
+                w.writerow(
+                    {
+                        "site_id": site_id,
+                        "site_family": site_family,
+                        "state_before": state_before,
+                        "state_after": state_after,
+                        "n_events": len(frames),
+                        "first_frame": min(frames),
+                        "last_frame": max(frames),
+                    }
+                )
+
+    def _write_family_transition_summary(
+        self,
+        out_prefix: str,
+        events: list[ActiveSiteEvent],
+        state_frames: list[ActiveSiteStateFrame],
+    ) -> None:
+        path = f"{out_prefix}_active_site_family_transitions.csv"
+        print(f"[write] {path}")
+        family_by_site: dict[str, str] = {}
+        for row in state_frames:
+            family_by_site.setdefault(row.site_id, row.site_family)
+
+        grouped: dict[tuple[str, str, str], dict[str, object]] = defaultdict(
+            lambda: {"frames": [], "sites": set()}
+        )
+        for row in events:
+            key = (family_by_site.get(row.site_id, ""), row.old_state, row.new_state)
+            grouped[key]["frames"].append(int(row.frame))
+            grouped[key]["sites"].add(row.site_id)
+
+        with open(path, "w", newline="", encoding="utf-8") as f:
+            w = csv.DictWriter(
+                f,
+                fieldnames=[
+                    "site_family",
+                    "state_before",
+                    "state_after",
+                    "n_events",
+                    "n_unique_sites",
+                    "first_frame",
+                    "last_frame",
+                ],
+            )
+            w.writeheader()
+            for (site_family, state_before, state_after), bucket in sorted(grouped.items()):
+                frames = bucket["frames"]
+                w.writerow(
+                    {
+                        "site_family": site_family,
+                        "state_before": state_before,
+                        "state_after": state_after,
+                        "n_events": len(frames),
+                        "n_unique_sites": len(bucket["sites"]),
+                        "first_frame": min(frames),
+                        "last_frame": max(frames),
+                    }
+                )
+
+    def _write_reaction_state_summary(self, out_prefix: str, coupling_rows) -> None:
+        path = f"{out_prefix}_reaction_by_active_site_state.csv"
+        print(f"[write] {path}")
+        strength_rank = {"none": 0, "medium": 1, "strong": 2}
+        grouped: dict[tuple[str, str, str, str, str, tuple[str, ...], tuple[str, ...], tuple[str, ...]], dict[str, object]] = {}
+
+        for row in coupling_rows:
+            key = (
+                row.site_id,
+                row.site_family,
+                row.site_state_before,
+                row.site_state_after,
+                row.coupling_type,
+                tuple(row.transform_types),
+                tuple(row.transform_reactants),
+                tuple(row.transform_products),
+            )
+            bucket = grouped.setdefault(
+                key,
+                {
+                    "frames": set(),
+                    "transform_ids": set(),
+                    "strongest": "none",
+                    "count": 0,
+                },
+            )
+            bucket["count"] = int(bucket["count"]) + 1
+            bucket["frames"].add(int(row.frame))
+            bucket["transform_ids"].update(int(x) for x in row.transform_event_ids)
+            if strength_rank.get(row.link_strength, 0) > strength_rank.get(str(bucket["strongest"]), 0):
+                bucket["strongest"] = row.link_strength
+
+        with open(path, "w", newline="", encoding="utf-8") as f:
+            w = csv.DictWriter(
+                f,
+                fieldnames=[
+                    "site_id",
+                    "site_family",
+                    "site_state_before",
+                    "site_state_after",
+                    "coupling_type",
+                    "reaction_signature",
+                    "transform_types",
+                    "transform_reactants",
+                    "transform_products",
+                    "n_rows",
+                    "n_unique_frames",
+                    "n_unique_transform_events",
+                    "strongest_link_strength",
+                ],
+            )
+            w.writeheader()
+            for key, bucket in sorted(grouped.items()):
+                (
+                    site_id,
+                    site_family,
+                    site_state_before,
+                    site_state_after,
+                    coupling_type,
+                    transform_types,
+                    transform_reactants,
+                    transform_products,
+                ) = key
+                reactants_joined = " + ".join(transform_reactants)
+                products_joined = " + ".join(transform_products)
+                w.writerow(
+                    {
+                        "site_id": site_id,
+                        "site_family": site_family,
+                        "site_state_before": site_state_before,
+                        "site_state_after": site_state_after,
+                        "coupling_type": coupling_type,
+                        "reaction_signature": (
+                            f"{reactants_joined} -> {products_joined}"
+                            if (reactants_joined or products_joined)
+                            else ""
+                        ),
+                        "transform_types": json.dumps(transform_types, ensure_ascii=False),
+                        "transform_reactants": json.dumps(transform_reactants, ensure_ascii=False),
+                        "transform_products": json.dumps(transform_products, ensure_ascii=False),
+                        "n_rows": bucket["count"],
+                        "n_unique_frames": len(bucket["frames"]),
+                        "n_unique_transform_events": len(bucket["transform_ids"]),
+                        "strongest_link_strength": bucket["strongest"],
+                    }
+                )
+
+    def _write_family_reaction_state_summary(self, out_prefix: str, coupling_rows) -> None:
+        path = f"{out_prefix}_reaction_by_active_site_family_state.csv"
+        print(f"[write] {path}")
+        strength_rank = {"none": 0, "medium": 1, "strong": 2}
+        grouped: dict[tuple[str, str, str, str, tuple[str, ...], tuple[str, ...], tuple[str, ...]], dict[str, object]] = {}
+
+        for row in coupling_rows:
+            key = (
+                row.site_family,
+                row.site_state_before,
+                row.site_state_after,
+                row.coupling_type,
+                tuple(row.transform_types),
+                tuple(row.transform_reactants),
+                tuple(row.transform_products),
+            )
+            bucket = grouped.setdefault(
+                key,
+                {
+                    "frames": set(),
+                    "sites": set(),
+                    "transform_ids": set(),
+                    "strongest": "none",
+                    "count": 0,
+                },
+            )
+            bucket["count"] = int(bucket["count"]) + 1
+            bucket["frames"].add(int(row.frame))
+            bucket["sites"].add(row.site_id)
+            bucket["transform_ids"].update(int(x) for x in row.transform_event_ids)
+            if strength_rank.get(row.link_strength, 0) > strength_rank.get(str(bucket["strongest"]), 0):
+                bucket["strongest"] = row.link_strength
+
+        with open(path, "w", newline="", encoding="utf-8") as f:
+            w = csv.DictWriter(
+                f,
+                fieldnames=[
+                    "site_family",
+                    "site_state_before",
+                    "site_state_after",
+                    "coupling_type",
+                    "reaction_signature",
+                    "transform_types",
+                    "transform_reactants",
+                    "transform_products",
+                    "n_rows",
+                    "n_unique_frames",
+                    "n_unique_sites",
+                    "n_unique_transform_events",
+                    "strongest_link_strength",
+                ],
+            )
+            w.writeheader()
+            for key, bucket in sorted(grouped.items()):
+                (
+                    site_family,
+                    site_state_before,
+                    site_state_after,
+                    coupling_type,
+                    transform_types,
+                    transform_reactants,
+                    transform_products,
+                ) = key
+                reactants_joined = " + ".join(transform_reactants)
+                products_joined = " + ".join(transform_products)
+                w.writerow(
+                    {
+                        "site_family": site_family,
+                        "site_state_before": site_state_before,
+                        "site_state_after": site_state_after,
+                        "coupling_type": coupling_type,
+                        "reaction_signature": (
+                            f"{reactants_joined} -> {products_joined}"
+                            if (reactants_joined or products_joined)
+                            else ""
+                        ),
+                        "transform_types": json.dumps(transform_types, ensure_ascii=False),
+                        "transform_reactants": json.dumps(transform_reactants, ensure_ascii=False),
+                        "transform_products": json.dumps(transform_products, ensure_ascii=False),
+                        "n_rows": bucket["count"],
+                        "n_unique_frames": len(bucket["frames"]),
+                        "n_unique_sites": len(bucket["sites"]),
+                        "n_unique_transform_events": len(bucket["transform_ids"]),
+                        "strongest_link_strength": bucket["strongest"],
+                    }
+                )
 
     def _ensure_state_writer(self, out_prefix: str) -> None:
         path = f"{out_prefix}_site_states.csv"
@@ -368,7 +854,8 @@ Reading tips
                 return species_map[label]
             nid = f"s{len(species_map)}"
             species_map[label] = nid
-            short_label = label.split("|", 1)[0]
+            parsed = parse_species_label(label)
+            short_label = str(parsed["short"] or parsed["formula"] or label)
             G.add_node(
                 nid,
                 node_type="species",
@@ -376,7 +863,13 @@ Reading tips
                 orig_id=label,
                 display_label=short_label,
                 species_label=label,
-                species_formula=short_label,
+                species_formula=str(parsed["formula"]),
+                species_smiles=str(parsed["smiles"]),
+                species_wl=str(parsed["wl"]),
+                species_is_ads=bool(parsed["is_ads"]),
+                species_ads_n=int(parsed["ads_n"]),
+                species_ads_signature=str(parsed["ads_signature"]),
+                ads_signature=str(parsed["ads_signature"]),
             )
             return nid
 
@@ -571,6 +1064,13 @@ Reading tips
                         "evidence_bonds": json.dumps(row.evidence_bonds, ensure_ascii=False),
                     }
                 )
+
+        self._write_state_counts_summary(out_prefix, state_frames)
+        self._write_family_state_counts_summary(out_prefix, state_frames)
+        self._write_transition_summary(out_prefix, events, state_frames)
+        self._write_family_transition_summary(out_prefix, events, state_frames)
+        self._write_reaction_state_summary(out_prefix, coupling_rows)
+        self._write_family_reaction_state_summary(out_prefix, coupling_rows)
 
         site_graph = self._build_site_aware_graph(coupling_rows)
         print(f"[build] {out_prefix}_network_site_aware.graphml")

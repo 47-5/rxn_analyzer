@@ -18,8 +18,12 @@ from .species import (
     SpeciesRuntime,
     TransformEmitter,
 )
-from .postprocess_graph import run_pipeline, load_config
-from .graph import ensure_bipartite_graph, add_transform_bipartite
+from .graph import (
+    add_transform_bipartite,
+    ensure_bipartite_graph,
+    load_postprocess_config,
+    run_postprocess_from_config,
+)
 from .active_site import (
     ActiveSite,
     ActiveSiteDefinition,
@@ -53,8 +57,8 @@ __all__ = [
     "SmilesOpenBabel3DStrategy",
     "SmilesRDKitTopologyStrategy",
     "SmilesComboStrategy",
-    "run_pipeline",
-    "load_config",
+    "run_postprocess_from_config",
+    "load_postprocess_config",
     "ensure_bipartite_graph",
     "add_transform_bipartite",
     "Site",

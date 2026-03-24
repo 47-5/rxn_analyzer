@@ -380,3 +380,112 @@ PER_CENTER_NAMING = True
 - `analyzer.geometric_site_signature_mode`
 - `analyzer.active_site_record_*`
 - `analyzer.active_site_streaming`
+
+## Graph Postprocess
+
+Graph postprocessing now lives under:
+
+- `rxn_analyzer.graph.postprocess`
+
+The new interface is YAML-driven and task-oriented. The first supported mode is:
+
+- `focus`
+  Keep the most important `species` and `reaction` nodes from an existing GraphML network.
+- `context`
+  Extract a local neighborhood around one or more seed nodes.
+- `story`
+  Extract a source-to-target path subgraph.
+
+Example config:
+
+- [example_graph_postprocess_focus.yaml](/D:/code/rxn_analyzer/example_config/example_graph_postprocess_focus.yaml)
+- [example_graph_postprocess_context.yaml](/D:/code/rxn_analyzer/example_config/example_graph_postprocess_context.yaml)
+- [example_graph_postprocess_story.yaml](/D:/code/rxn_analyzer/example_config/example_graph_postprocess_story.yaml)
+
+Key `focus` options:
+
+- `score_mode`
+  Controls how node importance is scored before keeping the top nodes.
+  Supported values:
+  - `weighted_degree`
+    Rank nodes by the sum of incident edge weights.
+  - `reaction_weight`
+    Rank reaction nodes by their own reaction weight, and rank species by the total weight of neighboring reaction nodes.
+    This is usually the most chemical-intuitive option for the current bipartite graph.
+  - `hybrid`
+    Sum `weighted_degree` and `reaction_weight`.
+- `top_species`
+  Number of species nodes kept before optional neighbor expansion.
+- `top_reactions`
+  Number of reaction nodes kept before optional neighbor expansion.
+- `top_species_per_family`
+  Optional quota-style protection against one species family taking over all retained species slots.
+  First keep up to this many top-ranked species from each family, then fill the remaining `top_species` slots globally.
+  Set to `0` to disable.
+- `species_family_mode`
+  Current supported value:
+  - `ads_state`
+    Split species into `ads` and `non_ads`.
+- `min_edge_weight`
+  Remove bipartite edges whose `weight` is below this threshold before scoring.
+- `collapse_reversible`
+  For the bipartite graph, merge true forward/reverse reaction-node pairs into one reversible reaction node.
+  Single-direction repeated reactions stay directional.
+- `include_neighbors`
+  After selecting the top-ranked nodes, also keep their first neighbors to preserve local context.
+- `keep_nodes`
+  Extra node labels / `orig_id` values that must be kept even if their score is low.
+- `protect_seed_neighbors`
+  Protect the nodes listed in `keep_nodes` together with their N-hop neighborhood, even if their score is low.
+
+Key `context` options:
+
+- `seeds`
+  Seed nodes to expand from. Each seed can be matched by node id, `orig_id`, `label`, or `display_label`.
+- `depth`
+  Number of graph hops to expand from the seeds.
+- `direction`
+  One of:
+  - `both`
+  - `out`
+  - `in`
+- `min_edge_weight`
+  Remove weak edges before context expansion.
+- `collapse_reversible`
+  Optional preprocessing step before extracting the local neighborhood.
+- `prune_isolates`
+  Remove isolated nodes after extracting the context subgraph.
+
+Key `story` options:
+
+- `sources`
+  Source nodes for path extraction.
+- `targets`
+  Target nodes for path extraction.
+- `path_mode`
+  Current supported value:
+  - `shortest`
+- `direction`
+  One of:
+  - `directed`
+  - `undirected`
+- `max_paths`
+  Maximum number of shortest paths retained in the story subgraph.
+- `min_edge_weight`
+  Remove weak edges before path extraction.
+- `collapse_reversible`
+  Optional preprocessing step before path extraction.
+- `prune_isolates`
+  Remove isolated nodes after extracting the story subgraph.
+
+Recommended usage:
+
+```bash
+python -m rxn_analyzer.graph.postprocess.runner --config example_config/example_graph_postprocess_focus.yaml
+```
+
+If you prefer the same style as `run_analyze.py`, use the root script:
+
+```bash
+python run_postprocess.py
+```

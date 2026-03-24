@@ -1,0 +1,36 @@
+# Graph postprocess example: context mode
+#
+# Extract a local subgraph around one or more seed nodes.
+
+mode: context
+
+input:
+  # Input GraphML produced by the analyzer.
+  graph: "Ga_network.graphml"
+
+output:
+  # Output GraphML for the local context subgraph.
+  graph: "Ga_network_context.graphml"
+
+context:
+  # Seed nodes can be given as node id, orig_id, label, or display_label.
+  seeds:
+    - "C6H8O|smiles=[H][CH]1[CH]([H])[CH]([C]([H])([H])[H])[O][CH]1[C]([H])([H])[H]|ads(n=1,coord=[1],slab=['Ga'])"
+
+  # Neighborhood depth in graph hops.
+  depth: 2
+
+  # Expansion direction:
+  # - both
+  # - out
+  # - in
+  direction: "both"
+
+  # Remove edges with weight < min_edge_weight before extracting the neighborhood.
+  min_edge_weight: 1
+
+  # Optional: merge true forward/reverse reaction pairs first.
+  collapse_reversible: false
+
+  # Remove isolated nodes after extraction.
+  prune_isolates: true

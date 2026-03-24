@@ -1,0 +1,64 @@
+# Graph postprocess example
+#
+# Current supported mode:
+# - focus
+#
+# The current postprocess layer is designed around the exported bipartite
+# species/reaction graph, not the old ordinary graph.
+
+mode: focus
+
+input:
+  # Input GraphML produced by the analyzer.
+  graph: "Ga_network.graphml"
+
+output:
+  # Simplified output graph.
+  graph: "Ga_network_focus.graphml"
+  # Optional CSV listing each node's importance score and whether it was kept.
+  scores_csv: "Ga_network_focus_scores.csv"
+
+focus:
+  # Importance scoring strategy.
+  # - weighted_degree: sum of incident edge weights
+  # - reaction_weight: reaction-node weight for reactions, neighboring reaction
+  #   weight sum for species; usually the most chemistry-friendly choice
+  # - hybrid: weighted_degree + reaction_weight
+  score_mode: "reaction_weight"
+
+  # Keep the top-N species and reaction nodes by score before neighbor expansion.
+  top_species: 30
+  top_reactions: 20
+
+  # Optional per-family quota for species retention.
+  # Current supported family mode:
+  # - ads_state: split species into ads / non_ads
+  #
+  # Behavior:
+  # 1. first keep up to top_species_per_family species from each family
+  # 2. then fill the remaining top_species slots by global ranking
+  #
+  # Set to 0 to disable family-aware quota.
+  top_species_per_family: 10
+  species_family_mode: "ads_state"
+
+  # Remove bipartite edges with weight < min_edge_weight before scoring.
+  min_edge_weight: 2
+
+  # Merge true forward/reverse reaction-node pairs into one reversible node.
+  # Single-direction repeated reactions stay directional.
+  collapse_reversible: true
+
+  # After selecting the top nodes, also keep one-hop neighbors to preserve context.
+  include_neighbors: true
+
+  # Force-keep these nodes even if their score is low.
+  # Each entry can be a node id, orig_id, label, or display_label.
+  keep_nodes: []
+  # Extra protection around keep_nodes:
+  # keep the seed nodes plus their N-hop neighbors even if their score is low.
+  # Set to 0 to disable.
+  protect_seed_neighbors: 1
+
+  # Remove isolated nodes after simplification.
+  prune_isolates: true

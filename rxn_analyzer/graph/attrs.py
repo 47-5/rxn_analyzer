@@ -30,6 +30,10 @@ def parse_species_label(label: str) -> dict[str, object]:
     wl = wl_match.group(1) if wl_match else ""
     is_ads = "|ads" in label
     ads_n = int(ads_match.group(1)) if ads_match else 0
+    ads_signature = ""
+    if is_ads:
+        _head, tail = label.split("|ads", 1)
+        ads_signature = f"ads{tail}"
     short = f"{formula}|ads" if is_ads else formula
     return {
         "formula": formula,
@@ -37,6 +41,7 @@ def parse_species_label(label: str) -> dict[str, object]:
         "wl": wl,
         "is_ads": is_ads,
         "ads_n": ads_n,
+        "ads_signature": ads_signature,
         "short": short,
     }
 
@@ -82,6 +87,9 @@ def build_label_fields(species: list[str]) -> dict[str, str]:
     label_wl = " + ".join(str(part["wl"]) for part in parts if part["wl"])
     label_ads = "ads" if any(bool(part["is_ads"]) for part in parts) else "non_ads"
     label_ads_n = " + ".join(str(part["ads_n"]) for part in parts if bool(part["is_ads"]))
+    label_ads_signature = " + ".join(
+        str(part["ads_signature"]) for part in parts if str(part["ads_signature"])
+    )
     label_short = " + ".join(str(part["short"]) for part in parts)
     return {
         "label_formula": label_formula,
@@ -89,6 +97,7 @@ def build_label_fields(species: list[str]) -> dict[str, str]:
         "label_wl": label_wl,
         "label_ads": label_ads,
         "label_ads_n": label_ads_n,
+        "label_ads_signature": label_ads_signature,
         "label_short": label_short,
     }
 

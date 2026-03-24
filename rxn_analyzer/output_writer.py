@@ -2,15 +2,11 @@ from __future__ import annotations
 
 import csv
 import json
+from collections import defaultdict
 
 import networkx as nx
 
-from .graph import (
-    add_transform,
-    ensure_graph,
-    finalize_graph_for_export,
-    summarize_reversible_reactions,
-)
+from .graph import finalize_graph_for_export
 
 
 class OutputWriter:
@@ -106,17 +102,64 @@ class OutputWriter:
         finalize_graph_for_export(graph)
         nx.write_graphml(graph, path)
 
-    def _build_summary_graph(self, transform_events: list) -> nx.DiGraph:
-        summary_graph = ensure_graph()
+    def _summarize_reversible_reactions_from_events(
+        self,
+        transform_events: list,
+        *,
+        include_frames: bool,
+    ) -> list[str]:
+        pair_counts: dict[tuple[str, str], int] = defaultdict(int)
+        pair_frames: dict[tuple[str, str], list[int]] = defaultdict(list)
+
         for event in transform_events:
-            add_transform(
-                summary_graph,
-                event.reactants,
-                event.products,
-                event.type,
-                frame=event.frame,
+            reactants = " + ".join(sorted(event.reactants))
+            products = " + ".join(sorted(event.products))
+            pair_counts[(reactants, products)] += 1
+            pair_frames[(reactants, products)].append(int(event.frame))
+
+        seen: set[frozenset[str]] = set()
+        rows: list[dict[str, object]] = []
+        for reactants, products in pair_counts:
+            pair = frozenset((reactants, products))
+            if pair in seen:
+                continue
+            seen.add(pair)
+
+            if (reactants, products) <= (products, reactants):
+                lhs, rhs = reactants, products
+            else:
+                lhs, rhs = products, reactants
+
+            fwd = pair_counts.get((lhs, rhs), 0)
+            rev = pair_counts.get((rhs, lhs), 0)
+            total = fwd + rev
+            rows.append(
+                {
+                    "lhs": lhs,
+                    "rhs": rhs,
+                    "fwd": fwd,
+                    "rev": rev,
+                    "total": total,
+                    "fwd_frames": pair_frames.get((lhs, rhs), []),
+                    "rev_frames": pair_frames.get((rhs, lhs), []),
+                }
             )
-        return summary_graph
+
+        rows.sort(key=lambda row: int(row["total"]), reverse=True)
+        if include_frames:
+            lines = ["reaction\tfwd\trev\ttotal\tfwd_frames\trev_frames"]
+            for row in rows:
+                lines.append(
+                    f"{row['lhs']}<->{row['rhs']}\t{row['fwd']}\t{row['rev']}\t{row['total']}\t"
+                    f"{json.dumps(row['fwd_frames'], ensure_ascii=False)}\t"
+                    f"{json.dumps(row['rev_frames'], ensure_ascii=False)}"
+                )
+            return lines
+
+        lines = ["reaction\tfwd\trev\ttotal"]
+        for row in rows:
+            lines.append(f"{row['lhs']}<->{row['rhs']}\t{row['fwd']}\t{row['rev']}\t{row['total']}")
+        return lines
 
     def _write_reaction_summary(
         self,
@@ -125,14 +168,9 @@ class OutputWriter:
         *,
         include_frames: bool,
     ) -> None:
-        summary_graph = self._build_summary_graph(transform_events)
-        lines = summarize_reversible_reactions(
-            summary_graph,
-            use="orig_id",
-            min_total_weight=1,
-            sort_by="total",
+        lines = self._summarize_reversible_reactions_from_events(
+            transform_events,
             include_frames=include_frames,
-            unique_frames=False,
         )
 
         path = f"{out_prefix}_reactions_summary.tsv"
