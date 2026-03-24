@@ -746,3 +746,55 @@ host_definition:
 - 提供了后处理机制，将复杂网络进一步收缩成主干、局部上下文和路径故事
 
 对于金属表面催化、分子筛酸中心体系以及带有局部活性中心的宿主体系，它都已经具备较好的实用性。随着规则和 summary 的继续增强，这个程序可以进一步发展为一个更加稳定、更加化学友好的反应网络分析平台。
+
+
+---
+
+## 14. 后处理功能补充更新
+
+本节补充 graph postprocess 的最新实现要点。当前后处理模块已经从旧式的低层图操作流水线，改成了三个面向任务的 YAML 模式：
+
+- `focus`
+- `context`
+- `story`
+
+### 14.1 后处理对象
+
+当前 postprocess 只面向程序导出的主二部图 `network.graphml`。也就是说，后处理的默认对象是由 `species` 节点、`reaction` 节点和有向二部边构成的主反应网络。普通图已不再是主输出。
+
+### 14.2 focus 模式
+
+`focus` 用于从完整反应网络中提取“最重要主干”。目前支持的重点参数包括 `score_mode`、`top_species`、`top_reactions`、`top_species_per_family`、`species_family_mode`、`min_edge_weight`、`collapse_reversible`、`keep_nodes`、`include_neighbors` 和 `protect_seed_neighbors`。
+
+`reaction_weight` 通常比纯 `weighted_degree` 更符合化学直觉。`top_species_per_family` 用于防止某一类 species 占满主干图名额，当前第一版 `species_family_mode` 只支持 `ads_state`，即把 species 分为 `ads` 和 `non_ads`。
+
+`protect_seed_neighbors` 与 `keep_nodes` 配合使用，可以在强制保留 seed 的同时，一起保留其周围的局部上下文。
+
+### 14.3 collapse_reversible
+
+`collapse_reversible` 现在不再是简单取消箭头，而是对二部图中的正逆反应节点进行真正合并。只有当 `A -> B` 和 `B -> A` 同时存在时，才会生成可逆反应节点。单向反应仍然保留箭头。
+
+此外，`min_edge_weight` 已经过滤掉的弱边，不会再被后续合并步骤错误地重新引入。
+
+### 14.4 min_edge_weight 的含义
+
+`min_edge_weight` 目前是按图中边的 `weight` 属性逐边过滤。对主二部图来说，它过滤的是 `species -> reaction` 和 `reaction -> species` 之间的参与关系强度。因此 `min_edge_weight: 2` 的意思是：只保留权重大于等于 2 的物种-反应参与边。
+
+### 14.5 context 模式
+
+`context` 用于围绕一个或多个 seed 提取局部子图。它适合用来回答“围绕某个中间体、产物或关键吸附物，附近到底发生了什么”。目前支持 `seeds`、`depth`、`direction`、`min_edge_weight`、`collapse_reversible` 和 `prune_isolates`，其中 `seeds` 可以通过 node id、`orig_id`、`label` 或 `display_label` 匹配。
+
+### 14.6 story 模式
+
+`story` 用于从 source 到 target 提取路径子图。目前支持 `shortest` 和 `chemical_shortest` 两种 `path_mode`，同时支持 `excluded_species_formulas` 和 `excluded_species_labels` 排除公共中介。
+
+`chemical_shortest` 会对高连接度的中间 species 施加惩罚，从而降低像 `H` 这种公共中介对路径搜索的支配作用。对于 `excluded_species_formulas`，用户只需要填写化学式，例如 `H` 或 `H2`。
+
+### 14.7 max_paths 的含义
+
+`max_paths` 表示最终允许保留多少条路径进入 story 子图。它限制的是路径条数，而不是单条路径的长度或节点数量上限。
+
+### 14.8 推荐实践
+
+当前版本下，如果你想先看整个网络的主干，使用 `focus`；如果你已经知道某个关键中间体或产物，使用 `context`；如果你想从起始物到目标物构造“故事线”，使用 `story`。对于 `story`，目前最推荐的组合是 `path_mode: chemical_shortest` 配合 `excluded_species_formulas: ["H", "H2"]`。
+
